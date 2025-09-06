@@ -34,8 +34,6 @@
         </div>
         <div class="orden-actions">
       <button class="btn btn-detalle" data-accion="detalle" data-id="${p.id}">Ver Detalle</button>
-      ${puedeEnProceso?`<button class="btn btn-estado" data-accion="en_proceso" data-id="${p.id}">Poner en proceso</button>`:''}
-      ${puedeCompletar?`<button class="btn btn-estado" data-accion="completado" data-id="${p.id}">Completar</button>`:''}
         </div>
       </div>`;
   }
@@ -143,6 +141,8 @@
         <td style="padding:8px 10px; border-bottom:1px solid #e5e7eb; color:#64748b;">${receta||'-'}</td>
       </tr>`;
     }).join('');
+    const puedeEnProceso = p.estado==='pendiente';
+    const puedeCompletar = p.estado==='en_proceso' || p.estado==='pendiente';
     backdrop.innerHTML = `
       <div class="modal-pedido-dialog recibo" style="max-width:560px; background:#fff; border:1px solid #e7eaf3;">
         <button class="modal-close" aria-label="Cerrar">×</button>
@@ -168,11 +168,34 @@
             <tbody>${filas||'<tr><td colspan="3" style="padding:10px; color:#64748b;">Sin productos</td></tr>'}</tbody>
           </table>
         </div>
+        <div class="modal-acciones">
+          ${puedeEnProceso?'<button class="btn modal-btn btn-proceso" data-proceso>Poner en proceso</button>':''}
+          ${puedeCompletar?'<button class="btn modal-btn btn-completar" data-completar>Completar</button>':''}
+        </div>
       </div>`;
     const close = ()=> backdrop.remove();
     backdrop.querySelector('.modal-close')?.addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
     document.body.appendChild(backdrop);
+
+    // Handlers de estado dentro del modal local
+    const btnProc = backdrop.querySelector('[data-proceso]');
+    if(btnProc){
+      btnProc.addEventListener('click', ()=>{
+        actualizarEstado(p.id, 'en_proceso').then(()=>{
+          try { window.BaresPedidos?.refresh?.(); } catch(e){}
+        }).finally(()=>{ cargarPedidosActivos(); close(); });
+      });
+    }
+    const btnComp = backdrop.querySelector('[data-completar]');
+    if(btnComp){
+      btnComp.addEventListener('click', ()=>{
+        const chain = p.estado==='pendiente' ? actualizarEstado(p.id, 'en_proceso') : Promise.resolve({success:true});
+        chain.finally(()=> actualizarEstado(p.id, 'completado')).then(()=>{
+          try { window.BaresPedidos?.refresh?.(); } catch(e){}
+        }).finally(()=>{ cargarPedidosActivos(); close(); });
+      });
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);

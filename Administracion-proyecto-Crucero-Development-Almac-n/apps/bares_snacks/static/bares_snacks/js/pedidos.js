@@ -730,9 +730,9 @@
                                     <tbody>${filas||'<tr><td colspan="3" style="padding:10px; color:#64748b;">Sin productos</td></tr>'}</tbody>
                                 </table>
                             </div>
-                            <div class="estado-acciones" style="display:flex; gap:8px; justify-content:center; margin-top:14px;">
-                                ${puedePonerEnProceso?'<button type="button" class="btn-primario" data-en-proceso>Poner en proceso</button>':''}
-                                ${puedeCompletar?'<button type="button" class="btn-primario btn-completar" data-completar>Completar</button>':''}
+                            <div class="estado-acciones modal-acciones" style="display:flex; gap:8px; justify-content:center; margin-top:14px;">
+                                ${puedePonerEnProceso?'<button type="button" class="modal-btn btn-proceso" data-en-proceso>Poner en proceso</button>':''}
+                                ${puedeCompletar?'<button type="button" class="modal-btn btn-completar" data-completar>Completar</button>':''}
                                 ${puedeEditar?'<button type="button" class="btn-secundario" data-editar>Editar</button>':''}
                             </div>
                         </div>`;
@@ -751,6 +751,7 @@
                                     toast('Pedido en proceso','success');
                                     cerrar();
                                     cargarPedidosIniciales();
+                                    try { window.BaresOrdenes && window.BaresOrdenes.refresh && window.BaresOrdenes.refresh(); } catch(e){}
                                 })
                                 .catch(()=> toast('Error de red', 'error'));
                         });
@@ -772,6 +773,7 @@
                                 toast('Pedido completado','success');
                                 cerrar();
                                 cargarPedidosIniciales();
+                                try { window.BaresOrdenes && window.BaresOrdenes.refresh && window.BaresOrdenes.refresh(); } catch(e){}
                             }).catch(()=> toast('Error de red', 'error'));
                         });
                     }
