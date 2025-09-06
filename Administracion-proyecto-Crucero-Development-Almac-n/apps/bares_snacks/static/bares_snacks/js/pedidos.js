@@ -688,11 +688,16 @@
                     backdrop.className = 'modal-pedido';
                     backdrop.style.display = 'flex';
 
-                    // Tabla de recetas simple: Producto | Receta (texto)
+                    // Tabla simple: Producto | Cantidad | Receta
                     const filas = (p.productos||[]).map((d)=>{
                         const nombre = (typeof d === 'string') ? d : d.nombre;
                         const receta = (typeof d === 'object' && d.receta) ? d.receta : '';
-                        return `<tr><td style="padding:8px 10px; border-bottom:1px solid #e5e7eb;">${nombre}</td><td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; color:#64748b;\">${receta||'-'}</td></tr>`;
+                        const cant = (typeof d === 'object' && (d.cantidad!=null)) ? d.cantidad : '';
+                        return `<tr>
+                            <td style="padding:8px 10px; border-bottom:1px solid #e5e7eb;">${nombre}</td>
+                            <td style="padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:center; color:#0f172a;">${cant}</td>
+                            <td style="padding:8px 10px; border-bottom:1px solid #e5e7eb; color:#64748b;">${receta||'-'}</td>
+                        </tr>`;
                     }).join('');
 
                     const puedePonerEnProceso = p.estado === 'pendiente';
@@ -705,19 +710,24 @@
                             <h2 class="modal-title">Factura Pedido #${p.id}</h2>
                             <div style="font-family:'Fira Mono','Consolas',monospace; color:#475569; display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0 14px;">
                                 <div>Estado: ${p.estado.replace('_',' ')}</div>
+                                <div>Tipo: ${p.tipo_consumo==='camarote'?'Camarote':'Bar'}</div>
                                 <div>${p.tipo_consumo==='camarote'?'Habitación':'Lugar'}: ${p.tipo_consumo==='camarote'?(p.habitacion_nombre||'--'):(p.lugarentrega_nombre||'--')}</div>
                                 <div>Empleado: ${p.empleado_nombre ? escapeHtml(p.empleado_nombre) + (p.empleado_categoria?` — ${escapeHtml(p.empleado_categoria)}`:'') : (p.empleado_id??'-')}</div>
-                                <div>Total: $${(p.total!=null?Number(p.total).toFixed(2):'0.00')}</div>
+                                <div>Fecha: ${p.fecha || '--'}</div>
+                                <div>Hora: ${p.hora || '--'}</div>
+                                <div style="grid-column:1 / -1;">Total: $${(p.total!=null?Number(p.total).toFixed(2):'0.00')}</div>
+                                ${p.nota?`<div style="grid-column:1 / -1;">Nota: ${escapeHtml(p.nota)}</div>`:''}
                             </div>
                             <div style="border:1px solid #e7eaf3; border-radius:10px; overflow:hidden;">
                                 <table style="width:100%; border-collapse:collapse;">
                                     <thead style="background:#f8fafc; text-align:left;">
                                         <tr>
                                             <th style="padding:10px; font-weight:600; border-bottom:1px solid #e7eaf3;">Producto</th>
+                                            <th style="padding:10px; font-weight:600; border-bottom:1px solid #e7eaf3; text-align:center; width:96px;">Cantidad</th>
                                             <th style="padding:10px; font-weight:600; border-bottom:1px solid #e7eaf3;">Receta</th>
                                         </tr>
                                     </thead>
-                                    <tbody>${filas||'<tr><td colspan="2" style="padding:10px; color:#64748b;">Sin productos</td></tr>'}</tbody>
+                                    <tbody>${filas||'<tr><td colspan="3" style="padding:10px; color:#64748b;">Sin productos</td></tr>'}</tbody>
                                 </table>
                             </div>
                             <div class="estado-acciones" style="display:flex; gap:8px; justify-content:center; margin-top:14px;">

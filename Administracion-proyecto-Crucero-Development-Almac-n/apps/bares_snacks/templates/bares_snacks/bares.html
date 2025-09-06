@@ -177,9 +177,10 @@
 
           <!-- Secciones del mini menú -->
           <section id="ordenes" class="menu-section">
-            <!-- Módulo Órdenes reiniciado: implementación previa eliminada -->
-            <div class="ordenes-placeholder" style="text-align:center; padding:48px 12px; color:#64748b; font-size:1.05rem;">
-              Módulo de Órdenes en reconstrucción.
+            <h2 style="text-align:center; color:#1e293b; margin-top:60px;">Gestión de Órdenes</h2>
+            <div class="ordenes-explicacion">Vista espejo de pedidos para cambiar estados (Pendiente → En Proceso → Completado). No hay historial ni edición de factura en esta sección.</div>
+            <div id="ordenes-contenedor" class="ordenes-contenedor" aria-live="polite">
+              <div class="ordenes-empty">No hay órdenes.</div>
             </div>
           </section>
           <section id="pedidos" class="menu-section" style="display: none">
