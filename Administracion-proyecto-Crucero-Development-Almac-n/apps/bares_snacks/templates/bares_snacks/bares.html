@@ -224,9 +224,6 @@
                     </label>
                   </div>
                   <div class="form-row fila-2cols">
-                    <label>Nombre Cliente (Demo)
-                      <input type="text" name="cliente_nombre" id="pedido-cliente-nombre" maxlength="60" placeholder="Nombre del cliente" />
-                    </label>
                     <label id="wrapper-instalacion">Instalación Entrega
                       <select name="lugarentrega_id" id="pedido-lugarentrega" required>
                         <option value="" selected>Selecciona...</option>
@@ -240,22 +237,10 @@
                   </div>
                   <input type="hidden" id="pedido-lugarentrega-nombre" name="lugarentrega_nombre" />
                   <input type="hidden" id="pedido-habitacion-nombre" name="habitacion_nombre" />
-                  <div class="form-row fila-3cols">
-                    <label>Cliente ID
-                      <input type="number" name="cliente_id" id="pedido-cliente" min="1" required placeholder="Ej: 12" />
-                    </label>
-                    <label>Empleado ID
+                  <div class="form-row fila-2cols">
+                    <label>Empleado Encargado
                       <input type="number" name="empleado_id" id="pedido-empleado" min="1" required placeholder="Ej: 3" />
                     </label>
-                    
-                  </div>
-                  <div class="form-row fila-2cols">
-                    <div>
-                      <label>Resumen de disponibilidad</label>
-                      <div id="resumen-disponibilidad" style="font-size:.75rem; color:#334155; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px; min-height:42px;">
-                        <em>(Selecciona productos para ver disponibilidad)</em>
-                      </div>
-                    </div>
                     <label>Nota / Referencia
                       <input type="text" name="nota" id="pedido-nota" maxlength="60" placeholder="Opcional" />
                     </label>
@@ -268,11 +253,18 @@
                       <input type="time" name="hora" id="pedido-hora" required />
                     </label>
                   </div>
-                  <div class="form-row acciones">
-                    <button type="button" class="btn-secundario" id="cancelar-pedido">Cancelar</button>
-                    <button type="submit" class="btn-primario">Guardar</button>
+                  <div class="form-row">
+                    <label>Resumen de disponibilidad</label>
+                    <div id="resumen-disponibilidad" style="font-size:.75rem; color:#334155; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px; min-height:42px;">
+                      <em>(Selecciona productos para ver disponibilidad)</em>
+                    </div>
+                    <div id="resumen-habitacion" style="font-size:.75rem; color:#334155; margin-top:8px;"></div>
                   </div>
-                  <p class="ayuda-form">Luego conectaremos este formulario al modelo <strong>Pedidos</strong> y generaremos Detalles.</p>
+                  <div class="form-row acciones">
+                    <button type="button" class="btn-secundario btn-animado" id="cancelar-pedido">Cancelar</button>
+                    <button type="submit" class="btn-primario btn-animado" id="guardar-pedido">Guardar</button>
+                  </div>
+                  <p class="ayuda-form">Solo puedes modificar el pedido en estado <strong>Pendiente</strong>. Al avanzar de estado, se bloquea la edición.</p>
                 </form>
               </div>
             </div>

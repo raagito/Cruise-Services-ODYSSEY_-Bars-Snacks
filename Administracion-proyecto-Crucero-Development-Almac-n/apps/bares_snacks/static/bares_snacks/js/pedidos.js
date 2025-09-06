@@ -124,68 +124,151 @@
         return t.content.firstElementChild;
     }
 
+    // ========== MODIFICACIONES PARA DISEÑO Y LÓGICA DE PEDIDOS ==========
+
+    // Eliminar referencias a cliente_id en toda la lógica
+    // Mostrar número de habitación en el resumen si aplica
+    // Rediseñar la caja de pedido y botones con clases animadas y coloridas
+    // Solo permitir edición en estado 'pendiente'
+    // Ventana de detalle tipo factura con receta y botón llamativo para completar pedido
+
     function buildCard(p, esHistorial){
-        const productosTxt = (p.productos||[]).map(d=> typeof d==='string'? d : `${escapeHtml(d.nombre)} x${d.cantidad}`).join(', ');
-        const totalTxt = (p.total!=null)? Number(p.total).toFixed(2) : (p.productos||[]).reduce((a,d)=> a + ((parseFloat(d.precio)||0)*(parseInt(d.cantidad,10)||0)), 0).toFixed(2);
-        const btns = esHistorial? '' : `
-            <div class="pedido-actions">
-                <button class="btn-secundario" data-accion="estado" data-id="${p.id}">Estado</button>
-                <button class="btn-peligro" data-accion="eliminar" data-id="${p.id}" ${p.estado!=='pendiente'?'disabled':''}>Eliminar</button>
+        // Etiqueta de plan y precio si es premium
+        let planLabel = '';
+        let planType = 'inclusive';
+        if(p.productos && p.productos.length > 0){
+            const premium = p.productos.some(d => d.plan === 'pago' || d.plan === 'premium');
+            if(premium){
+                planLabel = `<span class="plan-label premium">Premium</span>`;
+                planType = 'premium';
+            } else {
+                planLabel = `<span class="plan-label inclusive">All Inclusive</span>`;
+            }
+        }
+        // Estado visual
+        let estadoClass = 'pedido-estado ' + p.estado;
+        let estadoTxt = p.estado.replace('_',' ');
+        // Productos y cantidades - estilo factura
+        const productosTxt = (p.productos||[]).map(d=> `${escapeHtml(d.nombre)} x${d.cantidad}`).join(', ');
+        // Lugar/habitación
+        let lugarTxt = p.tipo_consumo==='camarote' ? `Habitación: ${escapeHtml(p.habitacion_nombre||'-')}` : `Lugar: ${escapeHtml(p.lugarentrega_nombre||'-')}`;
+        // Empleado
+        let empleadoTxt = `Empleado: ${p.empleado_id??'-'}`;
+        // Botones
+        let btns = '';
+        if(!esHistorial){
+            btns = `<div class="pedido-actions">
+                <button class="btn-secundario btn-animado" data-accion="detalle" data-id="${p.id}">Ver Detalle</button>
+                <button class="btn-peligro btn-animado" data-accion="eliminar" data-id="${p.id}" ${p.estado!=='pendiente'?'disabled':''}>Eliminar</button>
             </div>`;
+        }
+        // Card visual estilo factura
         const card = htmlToEl(`
-            <div class="pedido-card" data-id="${p.id}">
+            <div class="pedido-card ${p.estado}" data-id="${p.id}" style="background:#fff; border:1px solid #e5e7eb; font-family: 'Fira Mono', 'Consolas', monospace; padding:18px 24px 22px;">
                 <div class="pedido-head">
                     <div class="pedido-id">#${p.id}</div>
-                    <div class="pedido-estado ${escapeHtml(p.estado)}">${escapeHtml(p.estado.replace('_',' '))}</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <div class="${estadoClass}">${estadoTxt}</div>
+                      ${planLabel}
+                    </div>
                 </div>
-                <div class="pedido-body">
-                    <div class="pedido-linea"><strong>Cliente:</strong> ${p.cliente_id??'-'}</div>
-                    <div class="pedido-linea"><strong>Empleado:</strong> ${p.empleado_id??'-'}</div>
-                    <div class="pedido-linea"><strong>${p.tipo_consumo==='camarote'?'Habitación':'Lugar'}:</strong> ${escapeHtml(p.lugarentrega_nombre||p.habitacion_nombre||'-')}</div>
-                    <div class="pedido-linea"><strong>Productos:</strong> ${productosTxt||'-'}</div>
-                    <div class="pedido-linea"><strong>Total:</strong> $${totalTxt}</div>
+                <div class="pedido-body" style="display:flex;flex-direction:column;gap:8px; margin-top:10px;">
+                    <div class="pedido-linea productos-lista" style="color:#64748b;">Productos: ${productosTxt||'-'}</div>
+                    <div class="pedido-linea lugar-lista" style="color:#64748b;">${lugarTxt}</div>
+                    <div class="pedido-linea empleado-lista" style="color:#64748b;">${empleadoTxt}</div>
                 </div>
                 ${btns}
-            </div>`);
+            </div>
+        `);
         return card;
     }
 
+    // Ventana de detalle tipo factura con receta y botón para completar pedido
+    function crearModalDetalle(p){
+        const backdrop = document.createElement('div');
+        backdrop.className='modal-pedido';
+        backdrop.style.display='flex';
+        // Receta por producto
+        let recetaHtml = '';
+        if(p.productos && p.productos.length){
+            recetaHtml = p.productos.map(prod => `<div><strong>${prod.nombre}</strong><br>${prod.receta||'-'}</div>`).join('<hr>');
+        } else {
+            recetaHtml = 'Sin productos cargados aún.';
+        }
+        // Botón completar
+        const btnCompletar = (p.estado!=='completado') ? '<button type="button" class="btn-primario btn-animado btn-completar" data-completar style="background:#16a34a;">Completar Pedido</button>' : '';
+        backdrop.innerHTML = `
+            <div class="modal-pedido-dialog recibo" style="max-width:440px; background:linear-gradient(180deg,#ffffff,#f8fafc 40%,#ffffff); border:1px solid #e2e8f0;">
+                <button class="modal-close" aria-label="Cerrar">×</button>
+                <h2 class="modal-title">Pedido #${p.id} (Estado: ${p.estado.replace('_',' ')})</h2>
+                <div class="estado-resumen" style="font-size:.75rem">
+                    <div class="fila">
+                        <span class="tag">${p.tipo_consumo==='camarote'?'Habitación':'Lugar'}: ${p.tipo_consumo==='camarote'?(p.habitacion_nombre||'--'):(p.lugarentrega_nombre||'--')}</span>
+                        <span class="tag">Empleado: ${p.empleado_id}</span>
+                    </div>
+                    <div class="fila"><span class="tag">Productos: ${(p.productos||[]).map(pr=>pr.nombre).join(', ')}</span></div>
+                    ${p.nota?`<div class="fila"><span class="tag">Nota: ${escapeHtml(p.nota)}</span></div>`:''}
+                </div>
+                <div class="receta-box" style="margin-top:8px; background:#f1f5f9; border:1px dashed #cbd5e1; padding:14px 16px; border-radius:16px; font-size:.68rem;">
+                    <strong>Receta / Preparación</strong>
+                    ${recetaHtml}
+                </div>
+                <div class="estado-acciones" style="justify-content:center; margin-top:10px;">
+                    ${btnCompletar}
+                </div>
+            </div>
+        `;
+        // Cierre y completar
+        backdrop.querySelector('.modal-close').addEventListener('click', ()=>{
+            backdrop.remove();
+        });
+        const btnComp = backdrop.querySelector('[data-completar]');
+        if(btnComp){
+            btnComp.addEventListener('click', ()=>{
+                // Completar pedido y actualizar stock
+                fetch(`/bar/pedido/${p.id}/estado/`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ estado: 'completado' }) })
+                    .then(r=>r.json())
+                    .then(j=>{
+                        toast('Pedido completado y stock actualizado','success');
+                        backdrop.remove();
+                        cargarPedidosIniciales();
+                    });
+            });
+        }
+        document.body.appendChild(backdrop);
+    }
+
+    // Delegación de acciones en la caja de pedidos
     function renderListas(){
         const activosCont = document.getElementById('pedidos-lista-activos');
         const histCont = document.getElementById('pedidos-lista-historial');
         if(activosCont){
-            const existentes = new Map(Array.from(activosCont.children).filter(el=>el.classList.contains('pedido-card')).map(el=>[parseInt(el.dataset.id,10), el]));
-            const frag = document.createDocumentFragment();
+            activosCont.innerHTML = '';
             if(!pedidos.length){
-                frag.appendChild(htmlToEl('<div class="pedidos-empty">No hay pedidos activos.</div>'));
+                activosCont.innerHTML = '<div class="pedidos-empty">No hay pedidos activos.</div>';
             } else {
                 pedidos.forEach(p=>{
-                    let card = existentes.get(p.id);
-                    if(card){ existentes.delete(p.id); }
-                    else { card = buildCard(p,false); card.classList.add('anim-enter'); }
-                    frag.appendChild(card);
+                    const card = buildCard(p, false);
+                    card.addEventListener('click', ()=>{
+                        crearModalDetalle(p);
+                    });
+                    activosCont.appendChild(card);
                 });
             }
-            existentes.forEach(card=> { card.classList.add('anim-exit'); card.addEventListener('animationend', ()=> card.remove(), { once:true }); });
-            activosCont.innerHTML='';
-            activosCont.appendChild(frag);
         }
         if(histCont){
-            const existentesH = new Map(Array.from(histCont.children).filter(el=>el.classList.contains('pedido-card')).map(el=>[parseInt(el.dataset.id,10), el]));
-            const fragH = document.createDocumentFragment();
+            histCont.innerHTML = '';
             if(!historial.length){
-                fragH.appendChild(htmlToEl('<div class="pedidos-empty">Sin registros en historial.</div>'));
+                histCont.innerHTML = '<div class="pedidos-empty">Sin registros en historial.</div>';
             } else {
                 historial.forEach(p=>{
-                    let card = existentesH.get(p.id);
-                    if(card){ existentesH.delete(p.id); }
-                    else { card = buildCard(p,true); card.classList.add('anim-enter'); }
-                    fragH.appendChild(card);
+                    const card = buildCard(p, true);
+                    card.addEventListener('click', ()=>{
+                        crearModalDetalle(p);
+                    });
+                    histCont.appendChild(card);
                 });
             }
-            existentesH.forEach(card=> { card.classList.add('anim-exit'); card.addEventListener('animationend', ()=> card.remove(), { once:true }); });
-            histCont.innerHTML='';
-            histCont.appendChild(fragH);
         }
     }
 
