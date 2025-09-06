@@ -3,6 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.db import IntegrityError
 from decimal import Decimal
+from django.http import JsonResponse
 
 @require_GET
 def productos_bar_api(request):
@@ -848,6 +849,33 @@ def actualizar_estado_pedido_api(request, pedido_id: int):
     p.estado = nuevo
     p.save(update_fields=['estado'])
   return JsonResponse({'success': True, 'pedido': _serialize_pedido(p)})
+
+
+@csrf_exempt
+@require_POST
+def eliminar_detalle_pedido_api(request, pedido_id: int, detalle_id: int):
+  """Elimina un solo detalle (producto) de un pedido pendiente. Si el pedido queda sin detalles, elimina el pedido.
+  Respuestas:
+    - { success: true, pedido_deleted: true, deleted_detalle_id }
+    - { success: true, pedido: <pedido actualizado>, deleted_detalle_id }
+  """
+  try:
+    p = Pedidos.objects.get(id=pedido_id)
+  except Pedidos.DoesNotExist:
+    return JsonResponse({'success': False, 'error': 'Pedido no encontrado'}, status=404)
+  if p.estado != 'pendiente':
+    return JsonResponse({'success': False, 'error': 'Solo se puede modificar un pedido en estado pendiente'}, status=400)
+  try:
+    det = p.detalles.get(id=detalle_id)
+  except DetallePedido.DoesNotExist:
+    return JsonResponse({'success': False, 'error': 'Detalle no encontrado en el pedido'}, status=404)
+  det.delete()
+  if not p.detalles.exists():
+    pid = p.id
+    p.delete()
+    return JsonResponse({'success': True, 'pedido_deleted': True, 'deleted_detalle_id': detalle_id, 'pedido_id': pid})
+  # Pedido aún tiene otros detalles; devolver serializado
+  return JsonResponse({'success': True, 'pedido': _serialize_pedido(p), 'deleted_detalle_id': detalle_id})
 
 
 @require_POST

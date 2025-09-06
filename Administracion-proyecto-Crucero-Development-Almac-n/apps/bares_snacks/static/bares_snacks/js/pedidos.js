@@ -528,7 +528,7 @@
                         const j = await r.json();
                         if(!r.ok || !j.success) throw new Error(j && j.error || 'No se pudo actualizar');
                         const ped = j.pedido;
-                        ped.productos = (ped.productos||[]).map(d=> ({ id:d.producto_id, nombre:d.nombre, cantidad:d.cantidad, precio:d.precio }));
+                        ped.productos = (ped.productos||[]).map(d=> ({ detalle_id: d.id, producto_id:d.producto_id, id:d.producto_id, nombre:d.nombre, cantidad:d.cantidad, precio:d.precio, receta:d.receta, subtotal:d.subtotal }));
                         ped.cantidad = ped.productos.reduce((a,d)=> a + (parseInt(d.cantidad,10)||0), 0);
                         // Actualizar listas: reemplazar si existe en activos o historial
                         pedidos = pedidos.map(x=> x.id===ped.id ? ped : x);
@@ -543,7 +543,7 @@
                         try { resp = JSON.parse(text); } catch(e){ throw new Error(`HTTP ${r.status} ${r.statusText}: ${text.slice(0,400)}`); }
                         if(!r.ok || !resp.success) throw new Error(resp && resp.error ? resp.error : 'Error creando pedido');
                         const ped = resp.pedido;
-                        ped.productos = ped.productos.map(d=> ({ id:d.producto_id, nombre:d.nombre, cantidad:d.cantidad, precio:d.precio }));
+                        ped.productos = ped.productos.map(d=> ({ detalle_id: d.id, producto_id:d.producto_id, id:d.producto_id, nombre:d.nombre, cantidad:d.cantidad, precio:d.precio, receta:d.receta, subtotal:d.subtotal }));
                         ped.cantidad = ped.productos.reduce((a,d)=> a + (parseInt(d.cantidad,10)||0), 0);
                         pedidos.unshift(ped);
                         renderListas();
@@ -689,14 +689,17 @@
                     backdrop.style.display = 'flex';
 
                     // Tabla simple: Producto | Cantidad | Receta
+                    const puedeBorrar = p.estado === 'pendiente';
                     const filas = (p.productos||[]).map((d)=>{
                         const nombre = (typeof d === 'string') ? d : d.nombre;
                         const receta = (typeof d === 'object' && d.receta) ? d.receta : '';
                         const cant = (typeof d === 'object' && (d.cantidad!=null)) ? d.cantidad : '';
-                        return `<tr>
+                        const detalleId = d.detalle_id || d.id; // preferir detalle_id
+                        return `<tr data-detalle-row="${detalleId||''}">
                             <td style="padding:8px 10px; border-bottom:1px solid #e5e7eb;">${nombre}</td>
                             <td style="padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:center; color:#0f172a;">${cant}</td>
                             <td style="padding:8px 10px; border-bottom:1px solid #e5e7eb; color:#64748b;">${receta||'-'}</td>
+                            <td style="padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:center;">${(puedeBorrar && detalleId)?`<button class="btn-peligro" data-del-detalle data-pedido-id="${p.id}" data-detalle-id="${detalleId}">Eliminar</button>`:''}</td>
                         </tr>`;
                     }).join('');
 
@@ -720,14 +723,15 @@
                             </div>
                             <div style="border:1px solid #e7eaf3; border-radius:10px; overflow:hidden;">
                                 <table style="width:100%; border-collapse:collapse;">
-                                    <thead style="background:#f8fafc; text-align:left;">
+                    <thead style="background:#f8fafc; text-align:left;">
                                         <tr>
                                             <th style="padding:10px; font-weight:600; border-bottom:1px solid #e7eaf3;">Producto</th>
                                             <th style="padding:10px; font-weight:600; border-bottom:1px solid #e7eaf3; text-align:center; width:96px;">Cantidad</th>
-                                            <th style="padding:10px; font-weight:600; border-bottom:1px solid #e7eaf3;">Receta</th>
+                        <th style="padding:10px; font-weight:600; border-bottom:1px solid #e7eaf3;">Receta</th>
+                        <th style="padding:10px; font-weight:600; border-bottom:1px solid #e7eaf3; text-align:center; width:120px;">Acciones</th>
                                         </tr>
                                     </thead>
-                                    <tbody>${filas||'<tr><td colspan="3" style="padding:10px; color:#64748b;">Sin productos</td></tr>'}</tbody>
+                    <tbody>${filas||'<tr><td colspan="4" style="padding:10px; color:#64748b; text-align:center;">Sin productos</td></tr>'}</tbody>
                                 </table>
                             </div>
                             <div class="estado-acciones modal-acciones" style="display:flex; gap:8px; justify-content:center; margin-top:14px;">
@@ -740,6 +744,38 @@
                     const cerrar = ()=> backdrop.remove();
                     backdrop.querySelector('.modal-close')?.addEventListener('click', cerrar);
                     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) cerrar(); });
+
+                    // Eliminar detalle (producto) desde la factura
+                    backdrop.addEventListener('click', (e)=>{
+                        const btnDel = e.target.closest('[data-del-detalle]');
+                        if(!btnDel) return;
+                        const detalleId = parseInt(btnDel.getAttribute('data-detalle-id'),10);
+                        if(!detalleId || p.estado!=='pendiente') return;
+                        fetch(`/bar/pedido/${p.id}/detalle/${detalleId}/eliminar/`, { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'} })
+                          .then(r=>r.json().then(j=>({ok:r.ok, j})))
+                          .then(({ok,j})=>{
+                              if(!ok || !j.success){ throw new Error((j&&j.error)||'No se pudo eliminar el producto'); }
+                              if(j.pedido_deleted){
+                                  // quitar tarjeta y cerrar
+                                  pedidos = pedidos.filter(x=> x.id!==p.id);
+                                  historial = historial.filter(x=> x.id!==p.id);
+                                  toast('Pedido eliminado (sin productos).','success');
+                                  cerrar();
+                              } else if(j.pedido){
+                                  // Actualizar pedido en memoria
+                                  const pedAct = j.pedido;
+                                  // Mantener forma de productos con detalle_id
+                                  pedAct.productos = (pedAct.productos||[]).map(d=> ({ detalle_id: d.id, producto_id:d.producto_id, id:d.producto_id, nombre:d.nombre, cantidad:d.cantidad, precio:d.precio, receta:d.receta, subtotal:d.subtotal }));
+                                  pedidos = pedidos.map(x=> x.id===pedAct.id ? pedAct : x);
+                                  historial = historial.map(x=> x.id===pedAct.id ? pedAct : x);
+                                  toast('Producto eliminado del pedido.','success');
+                                  cerrar();
+                              }
+                              renderListas();
+                              try { window.BaresOrdenes && window.BaresOrdenes.refresh && window.BaresOrdenes.refresh(); } catch(e){}
+                          })
+                          .catch(err=>{ console.error(err); toast(err.message||'Error al eliminar producto','error'); });
+                    });
 
                     // Acción: Poner en proceso
                     const btnProceso = backdrop.querySelector('[data-en-proceso]');
