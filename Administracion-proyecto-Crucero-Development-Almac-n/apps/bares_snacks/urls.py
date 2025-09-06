@@ -19,10 +19,12 @@ urlpatterns = [
     path('producto-bar/<int:producto_id>/receta/guardar/', views.guardar_receta_producto_bar_api, name='guardar-receta-producto-bar-api'),
     path('crear-pedido/', views.crear_pedido_api, name='crear-pedido-api'),
     path('pedido/<int:pedido_id>/eliminar/', views.eliminar_pedido_api, name='eliminar-pedido-api'),
+    path('pedido/<int:pedido_id>/actualizar/', views.actualizar_pedido_api, name='actualizar-pedido-api'),
     path('bares/', views.bares_list_api, name='bares-list-api'),
     path('puntos-venta/', views.puntos_venta_bares_api, name='puntos-venta-bares-api'),
     path('pedidos/', views.pedidos_list_api, name='pedidos-list-api'),
     path('pedido/<int:pedido_id>/estado/', views.actualizar_estado_pedido_api, name='actualizar-estado-pedido-api'),
+    path('empleado/<int:empleado_id>/', views.empleado_info_api, name='empleado-info-api'),
 ]
 
 if settings.DEBUG:

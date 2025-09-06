@@ -152,8 +152,10 @@
         const productosTxt = (p.productos||[]).map(d=> `${escapeHtml(d.nombre)} x${d.cantidad}`).join(', ');
         // Lugar/habitación
         let lugarTxt = p.tipo_consumo==='camarote' ? `Habitación: ${escapeHtml(p.habitacion_nombre||'-')}` : `Lugar: ${escapeHtml(p.lugarentrega_nombre||'-')}`;
-        // Empleado
-        let empleadoTxt = `Empleado: ${p.empleado_id??'-'}`;
+    // Empleado (mostrar nombre y categoría si están disponibles)
+    let empNom = p.empleado_nombre || null;
+    let empCat = p.empleado_categoria || null;
+    let empleadoTxt = 'Empleado: ' + (empNom ? `${escapeHtml(empNom)}${empCat?` — ${escapeHtml(empCat)}`:''}` : (p.empleado_id??'-'));
         // Botones
         let btns = '';
         if(!esHistorial){
@@ -196,7 +198,8 @@
             recetaHtml = 'Sin productos cargados aún.';
         }
         // Botón completar
-        const btnCompletar = (p.estado!=='completado') ? '<button type="button" class="btn-primario btn-animado btn-completar" data-completar style="background:#16a34a;">Completar Pedido</button>' : '';
+    const btnCompletar = (p.estado!=='completado') ? '<button type="button" class="btn-primario btn-animado btn-completar" data-completar style="background:#16a34a;">Completar Pedido</button>' : '';
+    const btnEditar = (p.estado==='pendiente') ? '<button type="button" class="btn-secundario btn-animado" data-editar style="margin-left:8px;">Editar</button>' : '';
         backdrop.innerHTML = `
             <div class="modal-pedido-dialog recibo" style="max-width:440px; background:linear-gradient(180deg,#ffffff,#f8fafc 40%,#ffffff); border:1px solid #e2e8f0;">
                 <button class="modal-close" aria-label="Cerrar">×</button>
@@ -204,7 +207,7 @@
                 <div class="estado-resumen" style="font-size:.75rem">
                     <div class="fila">
                         <span class="tag">${p.tipo_consumo==='camarote'?'Habitación':'Lugar'}: ${p.tipo_consumo==='camarote'?(p.habitacion_nombre||'--'):(p.lugarentrega_nombre||'--')}</span>
-                        <span class="tag">Empleado: ${p.empleado_id}</span>
+                        <span class="tag">Empleado: ${p.empleado_nombre ? escapeHtml(p.empleado_nombre) + (p.empleado_categoria?` — ${escapeHtml(p.empleado_categoria)}`:'') : (p.empleado_id??'-')}</span>
                     </div>
                     <div class="fila"><span class="tag">Productos: ${(p.productos||[]).map(pr=>pr.nombre).join(', ')}</span></div>
                     ${p.nota?`<div class="fila"><span class="tag">Nota: ${escapeHtml(p.nota)}</span></div>`:''}
@@ -215,6 +218,7 @@
                 </div>
                 <div class="estado-acciones" style="justify-content:center; margin-top:10px;">
                     ${btnCompletar}
+                    ${btnEditar}
                 </div>
             </div>
         `;
@@ -233,6 +237,63 @@
                         backdrop.remove();
                         cargarPedidosIniciales();
                     });
+            });
+        }
+        const btnEdit = backdrop.querySelector('[data-editar]');
+        if(btnEdit){
+            btnEdit.addEventListener('click', ()=>{
+                // Cargar el pedido en el mismo form de crear para editarlo
+                try{
+                    // Prellenar selección de productos y cantidades
+                    cantidadesEstado.clear();
+                    (p.productos||[]).forEach(d=>{
+                        if(d.producto_id){
+                            cantidadesEstado.set(d.producto_id, { id:d.producto_id, nombre:d.nombre, tipo:(d.plan==='pago'?'pago':'gratis'), precio: d.precio||0, cantidad: d.cantidad||1 });
+                        } else if(d.id){
+                            cantidadesEstado.set(d.id, { id:d.id, nombre:d.nombre, tipo:(d.plan==='pago'?'pago':'gratis'), precio: d.precio||0, cantidad: d.cantidad||1 });
+                        }
+                    });
+                    // Tipo de consumo
+                    const tipoSel = document.getElementById('pedido-tipo-consumo');
+                    if(tipoSel){ tipoSel.value = p.tipo_consumo || 'bar'; tipoSel.dispatchEvent(new Event('change')); }
+                    // Lugar entrega / habitación nombre ya se pone en hidden al guardar; reselect por id si disponible
+                    const instSel = document.getElementById('pedido-lugarentrega');
+                    if(instSel && p.lugarentrega_id){ instSel.value = String(p.lugarentrega_id); instSel.dispatchEvent(new Event('change')); }
+                    const habSel = document.getElementById('pedido-habitacion');
+                    if(habSel && p.habitacion_id){ habSel.value = String(p.habitacion_id); habSel.dispatchEvent(new Event('change')); }
+                    // Empleado
+                    const empInp = document.getElementById('pedido-empleado');
+                    if(empInp){ empInp.value = p.empleado_id || ''; empInp.dispatchEvent(new Event('input')); }
+                    // Nota
+                    const notaInp = document.getElementById('pedido-nota');
+                    if(notaInp){ notaInp.value = p.nota || ''; }
+                    // Abrir y sincronizar cantidades
+                    abrirModalCrear();
+                    marcarSelectProductos();
+                    syncCajaCantidades();
+                    // Reemplazar handler submit temporalmente para actualizar en vez de crear
+                    const form = document.getElementById('form-crear-pedido');
+                    const onSubmit = async (e)=>{
+                        e.preventDefault();
+                        const productosSel = parseListaProductos();
+                        const payload = {
+                            empleado_id: parseInt(document.getElementById('pedido-empleado')?.value||'0',10)||null,
+                            tipo_consumo: document.getElementById('pedido-tipo-consumo')?.value||'bar',
+                            lugarentrega_id: parseInt(document.getElementById('pedido-lugarentrega')?.value||'0',10)||null,
+                            nota: (document.getElementById('pedido-nota')?.value||'').trim(),
+                            productos: productosSel.map(x=> ({ producto_id:x.id, cantidad:x.cantidad }))
+                        };
+                        const r = await fetch(`/bar/pedido/${p.id}/actualizar/`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                        const j = await r.json();
+                        if(!r.ok || !j.success){ toast(j.error||'No se pudo actualizar', 'error'); return; }
+                        toast('Pedido actualizado','success');
+                        cerrarModalCrear();
+                        backdrop.remove();
+                        cargarPedidosIniciales();
+                        form.removeEventListener('submit', onSubmit);
+                    };
+                    form.addEventListener('submit', onSubmit);
+                }catch(err){ console.error(err); toast('No se pudo cargar el pedido para edición','error'); }
             });
         }
         document.body.appendChild(backdrop);
@@ -304,7 +365,7 @@
             <div class="fila">
                 <span class="tag">Estado Actual: ${p.estado.replace('_',' ')}</span>
                 <span class="tag">Cliente: ${p.cliente_id}</span>
-                <span class="tag">Empleado: ${p.empleado_id}</span>
+                <span class="tag">Empleado: ${p.empleado_nombre ? escapeHtml(p.empleado_nombre) + (p.empleado_categoria?` — ${escapeHtml(p.empleado_categoria)}`:'') : (p.empleado_id??'-')}</span>
                 <span class="tag">Cantidad: ${p.cantidad}</span>
                 <span class="tag">${p.tipo_consumo==='camarote'?'Habitación':'Lugar'}: ${p.tipo_consumo==='camarote'?(p.habitacion_nombre||'--'):(p.lugarentrega_nombre||'--')}</span>
             </div>
@@ -371,6 +432,34 @@
         if(btnCrear) btnCrear.addEventListener('click', abrirModalCrear);
         ;[cerrar,cancelar].forEach(el=> el && el.addEventListener('click', cerrarModalCrear));
         if(modalCrear){ modalCrear.addEventListener('click', e=>{ if(e.target===modalCrear) cerrarModalCrear(); }); }
+
+        // Mostrar nombre y categoria del empleado al escribir el ID
+        const empleadoInput = document.getElementById('pedido-empleado');
+        const empleadoInfoEl = document.getElementById('empleado-info');
+        let empleadoFetchTimer = null;
+        if(empleadoInput && empleadoInfoEl){
+            const renderEmpleado = (txt, color='#334155')=>{ empleadoInfoEl.textContent = txt; empleadoInfoEl.style.color = color; };
+            const buscar = async (id)=>{
+                if(!id||id<=0){ renderEmpleado(''); return; }
+                try{
+                    renderEmpleado('Buscando…', '#64748b');
+                    const r = await fetch(`/bar/empleado/${id}/`);
+                    const j = await r.json();
+                    if(!r.ok || !j.success) throw new Error((j&&j.error)||'No encontrado');
+                    const e = j.empleado;
+                    renderEmpleado(`${e.nombre_completo} — ${e.categoria}${e.puesto?` (${e.puesto})`:''}`);
+                }catch(err){
+                    renderEmpleado('Empleado no encontrado', '#b91c1c');
+                }
+            };
+            const handler = ()=>{
+                const id = parseInt(empleadoInput.value||'0', 10) || 0;
+                if(empleadoFetchTimer) clearTimeout(empleadoFetchTimer);
+                empleadoFetchTimer = setTimeout(()=> buscar(id), 300);
+            };
+            empleadoInput.addEventListener('input', handler);
+            empleadoInput.addEventListener('blur', handler);
+        }
 
         // Lógica demo camarote según cliente y lugar
     const lugarSelect = document.getElementById('pedido-lugar');
@@ -600,88 +689,102 @@
 
         /* ----------- Detalle Factura / Receta ----------- */
         function abrirDetalleFactura(p){
-        // NO cambiamos estado aquí; se hará al cerrar si estaba pendiente
-                const modal = crearModalDetalle(p);
-                document.body.appendChild(modal.backdrop);
-        }
+  // Si está pendiente, al abrir detalle, pasamos a en_proceso automáticamente
+  const estabaPendiente = p.estado === 'pendiente';
+  if(estabaPendiente){
+    fetch(`/bar/pedido/${p.id}/estado/`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ estado: 'en_proceso' }) })
+      .then(r=>r.json()).then(({success, pedido})=>{
+        if(success && pedido){ p = pedido; renderListas(); }
+        const modal = crearModalFactura(p);
+        document.body.appendChild(modal.backdrop);
+      })
+      .catch(()=>{
+        const modal = crearModalFactura(p);
+        document.body.appendChild(modal.backdrop);
+      });
+  } else {
+    const modal = crearModalFactura(p);
+    document.body.appendChild(modal.backdrop);
+  }
+}
 
-        function crearModalDetalle(p){
-                const backdrop = document.createElement('div');
-                backdrop.className='modal-pedido';
-                backdrop.style.display='flex';
-            backdrop.innerHTML=`<div class="modal-pedido-dialog recibo" style="max-width:440px; background:linear-gradient(180deg,#ffffff,#f8fafc 40%,#ffffff); border:1px solid #e2e8f0;">
-                        <button class="modal-close" aria-label="Cerrar">×</button>
-                        <h2 class="modal-title">Pedido #${p.id} (Estado: ${p.estado.replace('_',' ')})</h2>
-                        <div class="estado-resumen" style="font-size:.75rem">
-                            <div class="fila">
-                                <span class="tag">Cliente: ${p.cliente_id}</span>
-                                <span class="tag">Empleado: ${p.empleado_id}</span>
-                                
-                                <span class="tag">${p.tipo_consumo==='camarote'?'Habitación':'Lugar'}: ${p.tipo_consumo==='camarote'?(p.habitacion_nombre||'--'):(p.lugarentrega_nombre||'--')}</span>
-                                <span class="tag">Cant: ${p.cantidad}</span>
-                            </div>
-                            ${(p.productos && p.productos.length)?`<div class="fila"><span class="tag">Productos: ${p.productos.map(pr=> (typeof pr==='string'? pr : pr.nombre)).join(', ')}</span></div>`:''}
-                            ${p.cliente_nombre?`<div class="fila"><span class="tag">Nombre Cliente: ${p.cliente_nombre}</span></div>`:''}
-                            ${p.nota?`<div class="fila"><span class="tag">Nota: ${p.nota}</span></div>`:''}
-                        </div>
-                                    <div class="receta-box" style="margin-top:8px; background:#f1f5f9; border:1px dashed #cbd5e1; padding:14px 16px; border-radius:16px; font-size:.68rem;">
-                            <strong>Receta / Preparación</strong>
-                            <p style="margin:6px 0 0; line-height:1.4;">(Hover en el botón para ver ejemplo)</p>
-                            <button class="pedido-btn" id="btn-hover-receta" style="margin-top:10px; position:relative;">Ver Receta
-                                <span class="receta-tooltip" style="position:absolute; left:0; top:110%; background:#0f172a; color:#fff; padding:10px 12px; border-radius:10px; font-size:.6rem; width:260px; opacity:0; pointer-events:none; transform:translateY(6px); transition:.25s;">${(p.productos && p.productos.length)?p.productos.map(prod=>`<strong>${prod}</strong>:<br>- Paso 1<br>- Paso 2<br><br>`).join(''):'Sin productos cargados aún.'}</span>
-                            </button>
-                        </div>
-                                    <p class="nota-proceso" style="margin:20px 0 4px; font-size:.55rem; letter-spacing:.05em; color:#64748b; text-align:center; text-transform:uppercase;">al cerrar esta pestaña, el pedido comenzará su proceso</p>
-                                    <div class="estado-acciones" style="justify-content:center; margin-top:10px;">
-                                        ${(p.estado!=='completado')?'<button type="button" class="btn-primario btn-completar" data-completar style="background:#16a34a;">Completar Pedido</button>':''}
-                                    </div>
-                </div>`;
-                const dialog = backdrop.querySelector('.modal-pedido-dialog');
-                const close = backdrop.querySelector('[data-close], .modal-close');
-                backdrop.addEventListener('click', e=>{ if(e.target===backdrop) cerrar(); });
-                backdrop.querySelector('.modal-close').addEventListener('click', cerrar);
-                            if(close) close.addEventListener('click', cerrar);
-            const btnComp = backdrop.querySelector('[data-completar]');
-                if(btnComp){
-                        btnComp.addEventListener('click',()=>{
-                            const id = p.id;
-                            const chain = (p.estado==='pendiente')
-                                ? actualizarEstadoPedido(id, 'en_proceso').then(()=> actualizarEstadoPedido(id, 'completado'))
-                                : actualizarEstadoPedido(id, 'completado');
-                            chain.then(pedFinal=>{
-                                pedidos = pedidos.filter(x=>x.id!==id);
-                                historial = historial.filter(x=>x.id!==id);
-                                if(pedFinal.estado==='completado') historial.unshift(pedFinal); else pedidos.unshift(pedFinal);
-                                toast(`Pedido #${id} completado`,'success');
-                                cerrar();
-                                renderListas();
-                            }).catch(err=>{ console.error(err); toast(err.message||'No se pudo completar','error'); });
-                        });
-                }
-                const hoverBtn = backdrop.querySelector('#btn-hover-receta');
-                if(hoverBtn){
-                        const tooltip = hoverBtn.querySelector('.receta-tooltip');
-                        hoverBtn.addEventListener('mouseenter',()=>{ tooltip.style.opacity='1'; tooltip.style.transform='translateY(0)'; });
-                        hoverBtn.addEventListener('mouseleave',()=>{ tooltip.style.opacity='0'; tooltip.style.transform='translateY(6px)'; });
-                }
-                const estadoInicial = p.estado;
-                function cerrar(){
-                    backdrop.classList.add('closing');
-                    if(estadoInicial==='pendiente' && p.estado==='pendiente'){
-                        actualizarEstadoPedido(p.id, 'en_proceso')
-                            .then(ped=>{
-                                pedidos = pedidos.filter(x=>x.id!==p.id);
-                                historial = historial.filter(x=>x.id!==p.id);
-                                pedidos.unshift(ped);
-                                toast(`Has empezado el pedido #${p.id}`,'success');
-                                renderListas();
-                            })
-                            .catch(err=>{ console.warn('No se pudo poner en proceso automáticamente', err); });
-                    }
-                    setTimeout(()=> backdrop.remove(), 260);
-                }
-                return { backdrop, dialog };
-        }
+function crearModalFactura(p){
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-pedido';
+  backdrop.style.display = 'flex';
+
+  // Tabla de recetas simple: Producto | Receta (texto)
+  const filas = (p.productos||[]).map((d,i)=>{
+    const nombre = (typeof d === 'string') ? d : d.nombre;
+    const receta = (typeof d === 'object' && d.receta) ? d.receta : '';
+    return `<tr><td style="padding:8px 10px; border-bottom:1px solid #e5e7eb;">${nombre}</td><td style="padding:8px 10px; border-bottom:1px solid #e5e7eb; color:#64748b;">${receta||'-'}</td></tr>`;
+  }).join('');
+
+  backdrop.innerHTML = `
+    <div class="modal-pedido-dialog recibo" style="max-width:560px; background:#fff; border:1px solid #e7eaf3;">
+      <button class="modal-close" aria-label="Cerrar">×</button>
+      <h2 class="modal-title">Factura Pedido #${p.id}</h2>
+      <div style="font-family:'Fira Mono','Consolas',monospace; color:#475569; display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0 14px;">
+        <div>Estado: ${p.estado.replace('_',' ')}</div>
+        <div>${p.tipo_consumo==='camarote'?'Habitación':'Lugar'}: ${p.tipo_consumo==='camarote'?(p.habitacion_nombre||'--'):(p.lugarentrega_nombre||'--')}</div>
+    <div>Empleado: ${p.empleado_nombre ? escapeHtml(p.empleado_nombre) + (p.empleado_categoria?` — ${escapeHtml(p.empleado_categoria)}`:'') : (p.empleado_id??'-')}</div>
+        <div>Total: $${(p.total!=null?Number(p.total).toFixed(2):'0.00')}</div>
+      </div>
+      <div style="border:1px solid #e7eaf3; border-radius:10px; overflow:hidden;">
+        <table style="width:100%; border-collapse:collapse;">
+          <thead style="background:#f8fafc; text-align:left;">
+            <tr>
+              <th style="padding:10px; font-weight:600; border-bottom:1px solid #e7eaf3;">Producto</th>
+              <th style="padding:10px; font-weight:600; border-bottom:1px solid #e7eaf3;">Receta</th>
+            </tr>
+          </thead>
+          <tbody>${filas||'<tr><td colspan="2" style="padding:10px; color:#64748b;">Sin productos</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="estado-acciones" style="justify-content:center; margin-top:14px;">
+        ${(p.estado!=='completado')?'<button type="button" class="btn-primario btn-animado btn-completar" data-completar>Completar Pedido</button>':''}
+      </div>
+    </div>`;
+
+  const cerrar = ()=> backdrop.remove();
+  const closeBtn = backdrop.querySelector('.modal-close');
+  closeBtn && closeBtn.addEventListener('click', cerrar);
+  backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) cerrar(); });
+
+  const btnComp = backdrop.querySelector('[data-completar]');
+  if(btnComp){
+    btnComp.addEventListener('click', ()=>{
+      fetch(`/bar/pedido/${p.id}/estado/`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ estado: 'completado' }) })
+        .then(r=>r.json()).then(({success, pedido, error})=>{
+          if(!success){ toast(error||'No se pudo completar', 'error'); return; }
+          toast('Pedido completado','success');
+          cerrar();
+          // refrescar listas
+          cargarPedidosIniciales();
+        })
+        .catch(()=> toast('Error de red', 'error'));
+    });
+  }
+  return { backdrop };
+}
+
+// Delegación para abrir detalle con click en botón o tarjeta
+document.getElementById('pedidos-lista-activos')?.addEventListener('click', e=>{
+  const btn = e.target.closest('[data-accion="detalle"]');
+  if(!btn) return;
+  const id = parseInt(btn.dataset.id,10);
+  const p = pedidos.find(x=>x.id===id);
+  if(!p) return;
+  abrirDetalleFactura(p);
+});
+document.getElementById('pedidos-lista-historial')?.addEventListener('click', e=>{
+  const btn = e.target.closest('[data-accion="detalle"]');
+  if(!btn) return;
+  const id = parseInt(btn.dataset.id,10);
+  const p = historial.find(x=>x.id===id);
+  if(!p) return;
+  abrirDetalleFactura(p);
+});
 
         /* ----------- Toast ----------- */
         function toast(msg, tipo='info'){

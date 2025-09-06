@@ -574,9 +574,11 @@ def crear_pedido_api(request):
         'nombre': prod.nombre,
         'cantidad': detalle.cantidad,
         'precio': precio_actual,
+        'plan': getattr(prod, 'plan', None),
+        'receta': getattr(prod, 'receta', '') or '',
         'subtotal': float(detalle.cantidad * (prod.precio_vta or 0))
       })
-
+    
     total = sum(d['subtotal'] for d in detalles_resp)
     fecha_hora = timezone.localtime(pedido.fecha_hora)
     return JsonResponse({
@@ -584,8 +586,11 @@ def crear_pedido_api(request):
       'pedido': {
         'id': pedido.id,
         'estado': pedido.estado,
-  'cliente_id': cliente.id if cliente else None,
-  'empleado_id': empleado.id if empleado else None,
+        'cliente_id': cliente.id if cliente else None,
+        'empleado_id': empleado.id if empleado else None,
+  'empleado_nombre': (f"{empleado.nombre} {empleado.apellido}".strip() if empleado else None),
+  'empleado_categoria': (empleado.categoria if empleado else None),
+  'empleado_puesto': (empleado.puesto if empleado else None),
         'lugarentrega_id': instalacion.id if instalacion else None,
         'lugarentrega_nombre': str(instalacion) if instalacion else None,
         'tipo_consumo': tipo_consumo,
@@ -616,6 +621,73 @@ def eliminar_pedido_api(request, pedido_id: int):
   return JsonResponse({'success': True, 'deleted_id': pedido_id})
 
 
+@csrf_exempt
+@require_POST
+def actualizar_pedido_api(request, pedido_id: int):
+  """Permite modificar un pedido solo si está en estado 'pendiente'. Reemplaza los detalles y puede actualizar empleado, lugar/nota."""
+  import json
+  from django.db import transaction
+  try:
+    p = Pedidos.objects.get(id=pedido_id)
+  except Pedidos.DoesNotExist:
+    return JsonResponse({'success': False, 'error': 'Pedido no encontrado'}, status=404)
+  if p.estado != 'pendiente':
+    return JsonResponse({'success': False, 'error': 'Solo se puede modificar un pedido en estado pendiente'}, status=400)
+  try:
+    payload = json.loads(request.body or '{}')
+  except json.JSONDecodeError:
+    return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+  empleado_id = payload.get('empleado_id')
+  tipo_consumo = payload.get('tipo_consumo')
+  lugarentrega_id = payload.get('lugarentrega_id')
+  nota = (payload.get('nota') or '').strip()
+  items = payload.get('productos') or []
+  from apps.bares_snacks.models import ProductoBar
+  from apps.recursos_humanos.models import Personal
+  from apps.cruceros.models import Instalacion
+  # Validar empleado si se envió
+  if empleado_id is not None:
+    if empleado_id:
+      try:
+        p.empleado = Personal.objects.get(id=empleado_id)
+      except Personal.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Empleado no encontrado'}, status=404)
+    else:
+      p.empleado = None
+  # Actualizar lugarentrega según tipo
+  if tipo_consumo == 'bar':
+    if lugarentrega_id:
+      try:
+        p.lugarentrega = Instalacion.objects.get(id=lugarentrega_id)
+      except Instalacion.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Instalación no encontrada'}, status=404)
+    else:
+      return JsonResponse({'success': False, 'error': 'lugarentrega_id requerido para consumo en bar'}, status=400)
+  elif tipo_consumo == 'camarote':
+    p.lugarentrega = None
+  # Nota (si quieres persistirla; actualmente _serialize pone nota None)
+  # Si el modelo Pedidos no tiene campo nota, puedes omitir guardarla.
+  try:
+    with transaction.atomic():
+      # Reemplazar detalles
+      p.detalles.all().delete()
+      detalles_resp = []
+      for it in items:
+        pid = it.get('producto_id') or it.get('id')
+        cant = int(it.get('cantidad') or 0)
+        if not pid or cant <= 0:
+          continue
+        try:
+          prod = ProductoBar.objects.get(id=pid)
+        except ProductoBar.DoesNotExist:
+          continue
+        DetallePedido.objects.create(pedido=p, producto=prod, cantidad=cant)
+      p.save()
+  except IntegrityError as ie:
+    return JsonResponse({'success': False, 'error': f'Error al actualizar: {ie}'}, status=400)
+  return JsonResponse({'success': True, 'pedido': _serialize_pedido(p)})
+
+
 def _serialize_pedido(p):
   detalles_resp = []
   total = 0.0
@@ -628,15 +700,31 @@ def _serialize_pedido(p):
       'nombre': getattr(d.producto, 'nombre', ''),
       'cantidad': d.cantidad,
       'precio': precio,
+      'plan': getattr(d.producto, 'plan', None),
+      'receta': getattr(d.producto, 'receta', '') or '',
       'subtotal': subtotal,
     })
     total += subtotal
   fecha_hora = timezone.localtime(p.fecha_hora)
+  # Datos de empleado, si existe
+  emp_nombre = None
+  emp_categoria = None
+  emp_puesto = None
+  try:
+    if p.empleado_id and getattr(p, 'empleado', None):
+      emp_nombre = f"{getattr(p.empleado, 'nombre', '')} {getattr(p.empleado, 'apellido', '')}".strip()
+      emp_categoria = getattr(p.empleado, 'categoria', None)
+      emp_puesto = getattr(p.empleado, 'puesto', None)
+  except Exception:
+    pass
   return {
     'id': p.id,
     'estado': p.estado,
     'cliente_id': p.cliente_id,
     'empleado_id': p.empleado_id,
+    'empleado_nombre': emp_nombre,
+    'empleado_categoria': emp_categoria,
+    'empleado_puesto': emp_puesto,
     'lugarentrega_id': p.lugarentrega_id,
     'lugarentrega_nombre': str(p.lugarentrega) if p.lugarentrega_id else None,
     'tipo_consumo': 'bar' if p.lugarentrega_id else 'camarote',
@@ -694,8 +782,48 @@ def actualizar_estado_pedido_api(request, pedido_id: int):
   )
   if not valido:
     return JsonResponse({'success': False, 'error': f'Transición no permitida: {actual} → {nuevo}'}, status=400)
-  p.estado = nuevo
-  p.save(update_fields=['estado'])
+  # Si vamos a completar, intentamos actualizar stock de los ingredientes de cada producto
+  if nuevo == 'completado' and actual != 'completado':
+    from django.db import transaction
+    try:
+      with transaction.atomic():
+        # cambiar estado primero en memoria, aplicar stock y persistir al final si todo ok
+        # Construir requerimientos por ingrediente de almacén
+        from apps.bares_snacks.models import IngredienteReceta
+        from collections import defaultdict
+        requeridos = defaultdict(float)  # producto_almacen_id -> cantidad total
+        detalles = list(p.detalles.select_related('producto').all())
+        # Para cada detalle, acumular ingredientes
+        for det in detalles:
+          prod = det.producto
+          if not prod:
+            continue
+          for ir in prod.receta_items.select_related('ingrediente').all():
+            if not ir.ingrediente_id:
+              continue
+            # cantidad puede ser decimal; multiplicar por cantidad del detalle
+            try:
+              cantidad_need = float(ir.cantidad) * float(det.cantidad)
+            except Exception:
+              cantidad_need = float(det.cantidad)
+            requeridos[ir.ingrediente_id] += cantidad_need
+        # Ejecutar retiros FIFO en almacén
+        from apps.almacen.Services.products import retirar_producto_fifo
+        import math
+        for prod_id, cant in requeridos.items():
+          # Convertir a entero, redondeando hacia arriba para garantizar disponibilidad
+          cant_int = int(math.ceil(cant)) if cant > 0 else 0
+          if cant_int <= 0:
+            continue
+          retirar_producto_fifo(prod_id, cant_int, modulo='BARES_SNACKS', descripcion=f'Pedido #{p.id}')
+        # Finalmente, persistir estado
+        p.estado = nuevo
+        p.save(update_fields=['estado'])
+    except Exception as e:
+      return JsonResponse({'success': False, 'error': f'No se pudo completar el pedido por stock: {e}'}, status=400)
+  else:
+    p.estado = nuevo
+    p.save(update_fields=['estado'])
   return JsonResponse({'success': True, 'pedido': _serialize_pedido(p)})
 
 
@@ -752,3 +880,24 @@ def disponibilidad_productos_api(request):
       'detalle': detalle
     })
   return JsonResponse({'success': True, 'items': resp})
+
+
+@require_GET
+def empleado_info_api(request, empleado_id: int):
+  """Devuelve info básica del empleado (Personal): nombre completo, categoria (cargo) y puesto."""
+  try:
+    from apps.recursos_humanos.models import Personal
+    e = Personal.objects.get(id=empleado_id)
+  except Exception:
+    return JsonResponse({'success': False, 'error': 'Empleado no encontrado'}, status=404)
+  return JsonResponse({
+    'success': True,
+    'empleado': {
+      'id': e.id,
+      'nombre': e.nombre,
+      'apellido': e.apellido,
+      'nombre_completo': f"{e.nombre} {e.apellido}",
+      'categoria': e.categoria,
+      'puesto': e.puesto,
+    }
+  })
