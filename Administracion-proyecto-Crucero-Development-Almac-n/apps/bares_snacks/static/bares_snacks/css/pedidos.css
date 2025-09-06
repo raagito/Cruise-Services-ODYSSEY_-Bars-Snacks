@@ -9,7 +9,7 @@
   --ped-warn:#f59e0b;
 }
 
-.btn-crear-pedido-fab { position:fixed; top:650px; right:130px; background:linear-gradient(135deg,#0ea5e9,#6366f1 55%,#8b5cf6); color:#fff; border:none; padding:14px 24px; font-size:.9rem; font-weight:600; border-radius:14px; cursor:pointer; box-shadow:0 8px 24px -8px rgba(14,165,233,.55),0 4px 10px -2px rgba(14,165,233,.35); letter-spacing:.5px; z-index:2500; transition:.25s transform,.25s box-shadow,.25s filter; }
+.btn-crear-pedido-fab { position:fixed; top:650px; right:130px; background:#3b82f6; color:#fff; border:none; padding:14px 24px; font-size:.9rem; font-weight:600; border-radius:14px; cursor:pointer; box-shadow:0 8px 24px -8px rgba(59,130,246,.35),0 4px 10px -2px rgba(59,130,246,.25); letter-spacing:.5px; z-index:2500; transition:.25s transform,.25s box-shadow,.25s filter; }
 .btn-crear-pedido-fab:hover { transform:translateY(-3px); box-shadow:0 12px 30px -10px rgba(14,165,233,.6); }
 .btn-crear-pedido-fab:active { transform:translateY(0); }
 
@@ -24,7 +24,7 @@
 .panel-pedidos .pedidos-lista { margin:0; }
 .pedidos-seccion-titulo { margin:10px 0 10px; font-size:.8rem; letter-spacing:.08em; text-transform:uppercase; color:#1e293b; font-weight:700; }
 .pedidos-lista { display:flex; flex-direction:column; gap:14px; margin:0 0 40px; }
-.pedidos-empty { padding:46px 18px; text-align:center; font-size:.95rem; color:#64748b; background:linear-gradient(145deg,#ffffff,#f1f5f9); border:1px dashed var(--ped-border); border-radius:18px; }
+.pedidos-empty { padding:46px 18px; text-align:center; font-size:.95rem; color:#64748b; background:#f8fafc; border:1px dashed var(--ped-border); border-radius:18px; }
 
 .pedido-card {
   border: 1px solid #e5e7eb;
@@ -39,7 +39,7 @@
   box-shadow: 0 8px 24px -8px #6366f1a0;
   border-color: #0ea5e9;
 }
-.pedido-card .pedido-producto { display:flex; flex-direction:column; gap:2px; background:linear-gradient(90deg,#f1f5f9,#ffffff); padding:4px 10px 10px; border-radius:14px; border:1px solid #e2e8f0; }
+.pedido-card .pedido-producto { display:flex; flex-direction:column; gap:2px; background:#f8fafc; padding:4px 10px 10px; border-radius:14px; border:1px solid #e2e8f0; }
 .pedido-card .pedido-producto .producto-titulo { font-size:.55rem; letter-spacing:.08em; text-transform:uppercase; font-weight:700; color:#475569; }
 .pedido-card .pedido-producto .producto-nombre { font-size:.9rem; font-weight:700; color:#0f172a; line-height:1.2; }
 .pedido-card .pedido-producto .producto-cliente { font-size:.6rem; letter-spacing:.05em; color:#475569; margin-top:4px; }
@@ -100,26 +100,14 @@
   transition: background 0.3s, color 0.3s, box-shadow 0.3s, transform 0.2s;
   box-shadow: 0 4px 16px -4px #6366f1a0;
 }
-.btn-animado:hover {
-  background: linear-gradient(90deg, #6366f1 60%, #0ea5e9 100%);
-  color: #fff;
-  transform: scale(1.05);
-  box-shadow: 0 8px 24px -8px #6366f1a0;
-}
+.btn-animado:hover { background:#2563eb; color:#fff; transform: scale(1.05); box-shadow: 0 8px 24px -8px rgba(37,99,235,.35); }
 .btn-animado:active {
   background: #0ea5e9;
   color: #fff;
   transform: scale(0.98);
 }
 
-.btn-completar {
-  background: linear-gradient(90deg, #16a34a 60%, #22d3ee 100%) !important;
-  color: #fff !important;
-  font-weight: bold;
-  border: none;
-  box-shadow: 0 6px 20px -6px #16a34aa0;
-  animation: pulseBtn 1.2s infinite alternate;
-}
+.btn-completar { background:#16a34a !important; color:#fff !important; font-weight:600; border:none; box-shadow: 0 6px 20px -6px rgba(22,163,74,.35); }
 @keyframes pulseBtn {
   0% { box-shadow: 0 0 0 0 #16a34a44; }
   100% { box-shadow: 0 0 16px 4px #16a34a44; }
@@ -279,7 +267,7 @@
 .form-crear-pedido input:focus, .form-crear-pedido select:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.25); }
 .form-crear-pedido .acciones { display:flex; justify-content:flex-end; gap:14px; margin-top:8px; }
 .form-crear-pedido .btn-primario, .form-crear-pedido .btn-secundario { border:none; padding:12px 22px; border-radius:14px; font-weight:600; font-size:.7rem; letter-spacing:.05em; cursor:pointer; transition:.25s; }
-.form-crear-pedido .btn-primario { background:linear-gradient(135deg,#0ea5e9,#6366f1); color:#fff; box-shadow:0 6px 20px -6px rgba(14,165,233,.55); }
+.form-crear-pedido .btn-primario { background:#0ea5e9; color:#fff; box-shadow:0 6px 20px -6px rgba(14,165,233,.35); }
 .form-crear-pedido .btn-primario:hover { filter:brightness(1.08); transform:translateY(-2px); }
 .form-crear-pedido .btn-secundario { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .form-crear-pedido .btn-secundario:hover { background:#e2e8f0; }

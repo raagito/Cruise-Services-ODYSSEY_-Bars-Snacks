@@ -184,7 +184,7 @@ def actualizar_producto_bar_api(request):
       'tipo_categoria': p.tipo_almacen,
       'subtipo_categoria': p.subtipo_almacen,
       'receta': p.receta,
-    }
+  }
   })
 from django.views.decorators.http import require_GET
 @require_GET
@@ -476,17 +476,18 @@ def crear_pedido_api(request):
     empleado_id = payload.get('empleado_id')
     tipo_consumo = payload.get('tipo_consumo')  # 'bar' | 'camarote'
     lugarentrega_id = payload.get('lugarentrega_id')  # requerido si bar
+    habitacion_id = payload.get('habitacion_id')  # requerido si camarote
     nota = (payload.get('nota') or '').strip()
     productos = payload.get('productos') or []  # [{producto_id, cantidad}]
 
-  # Validaciones mínimas: ahora cliente y empleado son opcionales
+    # Validaciones mínimas: ahora cliente y empleado son opcionales
     if not productos:
       return JsonResponse({'success': False, 'error': 'Debe incluir al menos un producto'}, status=400)
 
     from apps.bares_snacks.models import ProductoBar
     from apps.ventas.models import Cliente
     from apps.recursos_humanos.models import Personal
-    from apps.cruceros.models import Instalacion
+    from apps.cruceros.models import Instalacion, Habitacion
 
     # Verificar existencia entidades si se enviaron
     cliente = None
@@ -503,6 +504,7 @@ def crear_pedido_api(request):
         return JsonResponse({'success': False, 'error': 'Entidad no encontrada: Personal'}, status=404)
 
     instalacion = None
+    habitacion = None
     if tipo_consumo == 'bar':
       if not lugarentrega_id:
         return JsonResponse({'success': False, 'error': 'lugarentrega_id es requerido para consumo en bar'}, status=400)
@@ -510,13 +512,21 @@ def crear_pedido_api(request):
         instalacion = Instalacion.objects.get(id=lugarentrega_id)
       except Instalacion.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Instalación no encontrada'}, status=404)
+    elif tipo_consumo == 'camarote':
+      if not habitacion_id:
+        return JsonResponse({'success': False, 'error': 'habitacion_id es requerido para consumo en camarote'}, status=400)
+      try:
+        habitacion = Habitacion.objects.get(id=habitacion_id)
+      except Habitacion.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Habitación no encontrada'}, status=404)
 
     # Crear pedido
     try:
       pedido = Pedidos.objects.create(
         empleado=empleado,
         cliente=cliente,
-        lugarentrega=instalacion,
+        lugarentrega=instalacion if tipo_consumo == 'bar' else None,
+        habitacion=habitacion if tipo_consumo == 'camarote' else None,
         estado='pendiente'
       )
     except IntegrityError as ie:
@@ -524,6 +534,7 @@ def crear_pedido_api(request):
         'empleado_id': getattr(empleado, 'id', None),
         'cliente_id': getattr(cliente, 'id', None),
         'lugarentrega_id': getattr(instalacion, 'id', None),
+        'habitacion_id': getattr(habitacion, 'id', None),
       }
       try:
         from apps.recursos_humanos.models import Personal as PersM
@@ -591,8 +602,10 @@ def crear_pedido_api(request):
   'empleado_nombre': (f"{empleado.nombre} {empleado.apellido}".strip() if empleado else None),
   'empleado_categoria': (empleado.categoria if empleado else None),
   'empleado_puesto': (empleado.puesto if empleado else None),
-        'lugarentrega_id': instalacion.id if instalacion else None,
-        'lugarentrega_nombre': str(instalacion) if instalacion else None,
+  'lugarentrega_id': instalacion.id if instalacion else None,
+  'lugarentrega_nombre': str(instalacion) if instalacion else None,
+  'habitacion_id': habitacion.id if habitacion else None,
+  'habitacion_nombre': (f"Hab. {habitacion.numero} ({habitacion.codigo_ubicacion})" if habitacion else None),
         'tipo_consumo': tipo_consumo,
         'productos': detalles_resp,
         'total': total,
@@ -640,11 +653,12 @@ def actualizar_pedido_api(request, pedido_id: int):
   empleado_id = payload.get('empleado_id')
   tipo_consumo = payload.get('tipo_consumo')
   lugarentrega_id = payload.get('lugarentrega_id')
+  habitacion_id = payload.get('habitacion_id')
   nota = (payload.get('nota') or '').strip()
   items = payload.get('productos') or []
   from apps.bares_snacks.models import ProductoBar
   from apps.recursos_humanos.models import Personal
-  from apps.cruceros.models import Instalacion
+  from apps.cruceros.models import Instalacion, Habitacion
   # Validar empleado si se envió
   if empleado_id is not None:
     if empleado_id:
@@ -665,6 +679,13 @@ def actualizar_pedido_api(request, pedido_id: int):
       return JsonResponse({'success': False, 'error': 'lugarentrega_id requerido para consumo en bar'}, status=400)
   elif tipo_consumo == 'camarote':
     p.lugarentrega = None
+    if habitacion_id:
+      try:
+        p.habitacion = Habitacion.objects.get(id=habitacion_id)
+      except Habitacion.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Habitación no encontrada'}, status=404)
+    else:
+      return JsonResponse({'success': False, 'error': 'habitacion_id requerido para consumo en camarote'}, status=400)
   # Nota (si quieres persistirla; actualmente _serialize pone nota None)
   # Si el modelo Pedidos no tiene campo nota, puedes omitir guardarla.
   try:
@@ -725,9 +746,11 @@ def _serialize_pedido(p):
     'empleado_nombre': emp_nombre,
     'empleado_categoria': emp_categoria,
     'empleado_puesto': emp_puesto,
-    'lugarentrega_id': p.lugarentrega_id,
-    'lugarentrega_nombre': str(p.lugarentrega) if p.lugarentrega_id else None,
-    'tipo_consumo': 'bar' if p.lugarentrega_id else 'camarote',
+  'lugarentrega_id': p.lugarentrega_id,
+  'lugarentrega_nombre': str(p.lugarentrega) if p.lugarentrega_id else None,
+  'habitacion_id': getattr(p, 'habitacion_id', None),
+  'habitacion_nombre': (f"Hab. {getattr(p.habitacion, 'numero', '')} ({getattr(p.habitacion, 'codigo_ubicacion', '')})" if getattr(p, 'habitacion_id', None) else None),
+  'tipo_consumo': 'bar' if p.lugarentrega_id else 'camarote',
     'productos': detalles_resp,
     'total': total,
     'nota': None,

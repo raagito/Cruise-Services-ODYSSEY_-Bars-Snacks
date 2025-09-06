@@ -81,6 +81,15 @@ class Pedidos(models.Model):
         related_name='pedidos_entregados',
         help_text='Instalación física de entrega o consumo (bar, restaurante, etc.)'
     )
+    # Si el consumo es en camarote, guardamos la habitación
+    habitacion = models.ForeignKey(
+        'cruceros.Habitacion',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='pedidos_servicio',
+        help_text='Habitación destino si el consumo es en camarote'
+    )
     
     
     def __str__(self):

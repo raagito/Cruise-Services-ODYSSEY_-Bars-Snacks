@@ -93,7 +93,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='bar',
-            constraint=models.CheckConstraint(condition=models.Q(('hora_cierre__gt', models.F('hora_aper'))), name='hcierre_mayorqueapertura'),
+            constraint=models.CheckConstraint(check=models.Q(hora_cierre__gt=models.F('hora_aper')), name='hcierre_mayorqueapertura'),
         ),
         migrations.AlterUniqueTogether(
             name='ingredientesreceta',
