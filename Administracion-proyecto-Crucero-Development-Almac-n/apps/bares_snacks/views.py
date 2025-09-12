@@ -90,35 +90,38 @@ def puntos_venta_bares_api(request):
 def eliminar_producto_bar_api(request):
   from apps.bares_snacks.models import Menu, ProductoBar
   import json
-  data = json.loads(request.body or '{}')
-  producto_id = data.get('id')
-  origen = data.get('origen')  # 'producto_bar' | 'menu' | None
-  if not producto_id:
-    return JsonResponse({'success': False, 'error': 'ID requerido'}, status=400)
-  # Estrategia: si se especifica origen, intentar sólo ese; si no, probar ProductoBar y luego Menu
-  if origen == 'producto_bar':
+  try:
+    data = json.loads(request.body or '{}')
+    producto_id = data.get('id')
+    origen = data.get('origen')  # 'producto_bar' | 'menu' | None
+    if not producto_id:
+      return JsonResponse({'success': False, 'error': 'ID requerido'}, status=400)
+    # Estrategia: si se especifica origen, intentar sólo ese; si no, probar ProductoBar y luego Menu
+    if origen == 'producto_bar':
+      try:
+        ProductoBar.objects.get(id=producto_id).delete()
+        return JsonResponse({'success': True, 'deleted_origin': 'producto_bar'})
+      except ProductoBar.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'ProductoBar no encontrado'}, status=404)
+    if origen == 'menu':
+      try:
+        Menu.objects.get(id=producto_id).delete()
+        return JsonResponse({'success': True, 'deleted_origin': 'menu'})
+      except Menu.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Menu no encontrado'}, status=404)
+    # Sin origen: intentar ambos
     try:
       ProductoBar.objects.get(id=producto_id).delete()
       return JsonResponse({'success': True, 'deleted_origin': 'producto_bar'})
     except ProductoBar.DoesNotExist:
-      return JsonResponse({'success': False, 'error': 'ProductoBar no encontrado'}, status=404)
-  if origen == 'menu':
+      pass
     try:
       Menu.objects.get(id=producto_id).delete()
       return JsonResponse({'success': True, 'deleted_origin': 'menu'})
     except Menu.DoesNotExist:
-      return JsonResponse({'success': False, 'error': 'Menu no encontrado'}, status=404)
-  # Sin origen: intentar ambos
-  try:
-    ProductoBar.objects.get(id=producto_id).delete()
-    return JsonResponse({'success': True, 'deleted_origin': 'producto_bar'})
-  except ProductoBar.DoesNotExist:
-    pass
-  try:
-    Menu.objects.get(id=producto_id).delete()
-    return JsonResponse({'success': True, 'deleted_origin': 'menu'})
-  except Menu.DoesNotExist:
-    return JsonResponse({'success': False, 'error': 'Producto no encontrado'}, status=404)
+      return JsonResponse({'success': False, 'error': 'Producto no encontrado'}, status=404)
+  except Exception as e:
+    return JsonResponse({'success': False, 'error': f'Error inesperado: {str(e)}'}, status=500)
 
 
 @csrf_exempt
@@ -225,7 +228,7 @@ def crear_producto_bar_api(request):
   if not nombre or not tipo_categoria or not subtipo_categoria:
     return JsonResponse({'success': False, 'error': 'Faltan campos obligatorios'}, status=400)
   from apps.almacen.models import Producto
-  from apps.bares_snacks.models import ProductoBar
+  from apps.bares_snacks.models import ProductoBar, IngredienteReceta
   ingredientes = Producto.objects.filter(id__in=ingredientes_ids)
   sin_stock = [i for i in ingredientes if i.cantidad <= 0]
   # Crear registro ProductoBar
@@ -238,6 +241,9 @@ def crear_producto_bar_api(request):
     precio_vta= precio if precio else 0,
     receta=''  # pendiente de implementar
   )
+  # Crear ingredientes de receta (por defecto cantidad=1, unidad vacía)
+  for ing in ingredientes:
+    IngredienteReceta.objects.create(producto_bar=producto, ingrediente=ing, cantidad=1, unidad='')
   return JsonResponse({
     'success': True,
     'producto': {

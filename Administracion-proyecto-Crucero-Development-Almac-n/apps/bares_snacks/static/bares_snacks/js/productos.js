@@ -1,5 +1,8 @@
 // Gestión de productos (Bares & Snacks) - Versión con filtros por plan y resumen inline
+// Gestión de productos (Bares & Snacks) - Versión con filtros por plan y resumen inline
 (function(){
+	// Stub for renderChips to prevent ReferenceError, now in correct scope
+	function renderChips() {}
 	const state = { productos: [], categorias: [], categoriaSeleccionada:'__ALL__', planFiltro:'todos', ingredientesCache:{}, cargando:false, edit:{active:false, producto:null} };
 	let btnCrear, modal, form, contenedorProductos, selectFiltroCategoria, btnCerrarModal, planFiltrosWrap;
 	let selectCategoriaFiltro, selectTipoAlmacen, selectSubtipoAlmacen, selectPlan, precioWrapper, inputPrecio, selectIngredientes, inputNombre, resumenList, contenedorTags, tablaIngredientes;
@@ -28,10 +31,33 @@
 		selectCategoria = selectTipoAlmacen; selectSubcategoria = selectSubtipoAlmacen; selectTipo = selectPlan;
 	}
 
-	function abrirModal(){ if(!modal) return; modal.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
+	function abrirModal(){
+		if(!modal) return;
+		modal.setAttribute('aria-hidden','false');
+		document.body.style.overflow='hidden';
+		if(inputNombre){
+			inputNombre.removeAttribute('readonly');
+			inputNombre.removeAttribute('disabled');
+		}
+	}
 	function setModalTitle(t){ const h = modal?.querySelector('.modal-title'); if(h) h.textContent=t; }
 	function setSubmitText(t){ const b = form?.querySelector('button[type="submit"]'); if(b) b.textContent=t; }
-	function cerrarModal(){ if(!modal) return; modal.setAttribute('aria-hidden','true'); document.body.style.overflow=''; form?.reset(); limpiarTags(); selectIngredientes.innerHTML=''; state.edit={active:false, producto:null}; setModalTitle('Crear Producto'); setSubmitText('Guardar'); actualizarResumen(); }
+	function cerrarModal(){
+		if(!modal) return;
+		modal.setAttribute('aria-hidden','true');
+		document.body.style.overflow='';
+		form?.reset();
+		limpiarTags();
+		selectIngredientes.innerHTML='';
+		state.edit={active:false, producto:null};
+		setModalTitle('Crear Producto');
+		setSubmitText('Guardar');
+		if(inputNombre){
+			inputNombre.removeAttribute('readonly');
+			inputNombre.removeAttribute('disabled');
+		}
+		actualizarResumen();
+	}
 	function togglePrecio(){ // siempre visible; sólo placeholder / validación
 		const isPremium = (selectPlan?.value === 'premium');
 		if(precioWrapper){ precioWrapper.style.display = isPremium ? '' : 'none'; }
@@ -156,7 +182,10 @@
 		setModalTitle('Editar Producto');
 		setSubmitText('Guardar cambios');
 		// Nombre
-		if(inputNombre) inputNombre.value = p.nombre || '';
+		if(inputNombre){
+			inputNombre.value = p.nombre || '';
+			inputNombre.setAttribute('readonly', 'readonly');
+		}
 		// Categoría (filtro)
 		const catFiltroSel = document.getElementById('categoria-filtro-select');
 		if(catFiltroSel){
@@ -188,16 +217,30 @@
 		const nombre = p.nombre || 'este producto';
 		if(!confirm(`¿Eliminar ${nombre}?`)) return;
 		card.classList.add('deleting');
+		let recargando = false;
 		try {
 			const resp = await fetch('/bar/eliminar-producto-bar/', { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ id: p.id, origen: p.origen }) });
-			const data = await resp.json();
-			if(!resp.ok || !data.success){ throw new Error(data.error||'Error eliminando'); }
-			// Quitar del estado y re-render
-			state.productos = state.productos.filter(prod=> String(prod.id)!==String(p.id));
-			renderChips();
-			renderProductos();
-			mostrarToastInfo('Producto eliminado', nombre);
-		}catch(err){ console.error(err); alert('No se pudo eliminar'); card.classList.remove('deleting'); }
+			let data;
+			try {
+				data = await resp.json();
+			} catch(jsonErr) {
+				// If response is not valid JSON
+				throw new Error('Respuesta inválida del servidor.');
+			}
+			if(resp.ok && data.success){
+				recargando = true;
+				window.location.reload();
+				return;
+			}
+			// Solo mostrar error si el backend responde con error
+			throw new Error(data.error||'Error eliminando');
+		}catch(err){ 
+			console.error(err); 
+			if(!recargando){
+				alert('No se pudo eliminar: ' + (err.message || 'Error desconocido'));
+			}
+			card.classList.remove('deleting'); 
+		}
 	}
 
 	function mostrarToastInfo(titulo, detalle){
@@ -216,26 +259,30 @@
 	function obtenerIngredientesSeleccionados(){ if(!contenedorTags) return []; return Array.from(contenedorTags.querySelectorAll('.ingrediente-tag')).map(t=>({ id:t.dataset.id, nombre:t.querySelector('.nombre')?.textContent.trim()||'', unidad:t.querySelector('.unidad')?.textContent.trim()||'', stock:t.querySelector('.stock')?.textContent.trim()||'' })); }
 
 	async function onSubmit(e){ e.preventDefault(); if(state.cargando) return; const fd=new FormData(form); const ingredientesSeleccionados=obtenerIngredientesSeleccionados(); const nombre=(fd.get('nombre')||'').trim()||inputNombre.value.trim(); const tipoCat= fd.get('tipo_almacen')||selectTipoAlmacen.value||''; const subTipoCat= fd.get('subtipo_almacen')||selectSubtipoAlmacen.value||''; const plan = fd.get('plan')||selectPlan.value||'all_inclusive'; const esPremium = plan==='premium'; const precioBruto = parseFloat(fd.get('precio')||inputPrecio.value||'0')||0; if(!nombre||!tipoCat||!subTipoCat){ alert('Completa nombre, tipo y subtipo.'); return;} if(esPremium && precioBruto<=0){ alert('Ingresa precio (>0) para Premium.'); return;} const precioVal = precioBruto; const categoriaFiltroVal = document.getElementById('categoria-filtro-select')?.value||''; const payloadBase={ nombre, categoria: categoriaFiltroVal, tipo_categoria: tipoCat, subtipo_categoria: subTipoCat, tipo: esPremium?'pago':'gratis', precio: precioVal };
-	try { state.cargando=true; let data=null; if(state.edit.active && state.edit.producto){
-		// Actualizar
-		const resp = await fetch('/bar/actualizar-producto-bar/', { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ id: state.edit.producto.id, ...payloadBase }) });
-		data = await resp.json();
-		if(!resp.ok || !data.success){ console.error('Error actualización', data); alert('Error actualizando producto'); return; }
-		// Refrescar en memoria
-		const idx = state.productos.findIndex(x=> String(x.id)===String(state.edit.producto.id));
-		if(idx>=0){ state.productos[idx] = { ...state.productos[idx], nombre, tipo: payloadBase.tipo, precio: precioVal, categoria: categoriaFiltroVal, tipo_categoria: tipoCat, subtipo_categoria: subTipoCat, categoria_id: tipoCat, subcategoria_id: subTipoCat } }
-		renderChips(); renderProductos(); cerrarModal(); mostrarToastInfo('Producto actualizado', nombre);
-	}else{
-		// Crear
-		const payload = { ...payloadBase, ingredientes: ingredientesSeleccionados.map(i=>i.id) };
-		let respRaw = await fetch('/bar/crear-producto-bar/', {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(payload)});
-		try { data= await respRaw.json(); } catch(parseErr){ const txt= await respRaw.text(); console.error('Respuesta no JSON', txt); throw new Error('Formato inesperado'); }
-		if(!respRaw.ok || !data.success){ console.error('Error creación', data); alert('Error creando producto'); return; }
-		await cargarProductosInicial(); // fallback: producto creado por nombre o último
-		let creado = state.productos.slice().reverse().find(p=> (p.nombre||'').trim().toLowerCase() === nombre.toLowerCase());
-		if(!creado && state.productos.length){ creado = state.productos[state.productos.length-1]; }
+	try { 
+		state.cargando=true; 
+		let data=null; 
+		if(state.edit.active && state.edit.producto){
+			// Actualizar
+			const payload = { id: state.edit.producto.id, ...payloadBase, ingredientes: ingredientesSeleccionados.map(i=>i.id) };
+			const resp = await fetch('/bar/actualizar-producto-bar/', { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(payload) });
+			data = await resp.json();
+			if(!resp.ok || !data.success){ console.error('Error actualización', data); alert('Error actualizando producto'); return; }
+			// Refrescar en memoria
+			const idx = state.productos.findIndex(x=> String(x.id)===String(state.edit.producto.id));
+			if(idx>=0){ state.productos[idx] = { ...state.productos[idx], nombre, tipo: payloadBase.tipo, precio: precioVal, categoria: categoriaFiltroVal, tipo_categoria: tipoCat, subtipo_categoria: subTipoCat, categoria_id: tipoCat, subcategoria_id: subTipoCat } }
+			renderChips(); renderProductos(); cerrarModal(); mostrarToastInfo('Producto actualizado', nombre);
+		}else{
+			// Crear
+			const payload = { ...payloadBase, ingredientes: ingredientesSeleccionados.map(i=>i.id) };
+			let respRaw = await fetch('/bar/crear-producto-bar/', {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(payload)});
+			try { data= await respRaw.json(); } catch(parseErr){ const txt= await respRaw.text(); console.error('Respuesta no JSON', txt); throw new Error('Formato inesperado'); }
+			if(!respRaw.ok || !data.success){ console.error('Error creación', data); alert('Error creando producto'); return; }
+			await cargarProductosInicial(); // fallback: producto creado por nombre o último
+			let creado = state.productos.slice().reverse().find(p=> (p.nombre||'').trim().toLowerCase() === nombre.toLowerCase());
+			if(!creado && state.productos.length){ creado = state.productos[state.productos.length-1]; }
 			renderChips(); renderProductos(); cerrarModal(); mostrarResumenCreado(creado || {nombre, tipo: esPremium?'pago':'gratis', precio: precioVal}, ingredientesSeleccionados.length, esPremium);
-	}
+		}
 	} catch(err){ console.error(err); alert('Error en operación'); } finally { state.cargando=false; } }
 	function mostrarResumenCreado(prod, cantidadIng, esPremium){
 		// Eliminar cualquier toast anterior
