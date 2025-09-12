@@ -676,6 +676,12 @@
         calcularDisponibilidadResumen();
     });
 
+    // Exponer refresco global para que otras secciones (ej. Promociones) actualicen la lista de pedidos
+    try {
+        window.BaresPedidos = window.BaresPedidos || {};
+        window.BaresPedidos.refresh = cargarPedidosIniciales;
+    } catch(_e) {}
+
                 /* ----------- Detalle Factura / Receta ----------- */
                 function abrirDetalleFactura(p){
                     // No cambiar estado automáticamente; mostrar acciones explícitas
