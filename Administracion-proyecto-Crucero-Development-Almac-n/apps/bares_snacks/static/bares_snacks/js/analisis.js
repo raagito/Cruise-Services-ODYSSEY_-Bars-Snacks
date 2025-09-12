@@ -1,6 +1,9 @@
 (function(){
 	let __lastStockData = { bajo: [], ideal: [] };
+<<<<<<< HEAD
 	let __stockPage = { bajo: 0, ideal: 0 };
+=======
+>>>>>>> 35867f076f8f8de083c899882dd5782053382bb9
 	function escapeHtml(str){
 		if(str==null) return '';
 		return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -42,6 +45,7 @@
 		const bajo = (data && data.bajo) || [];
 		const ideal = (data && data.ideal) || [];
 		__lastStockData = { bajo: bajo.slice(), ideal: ideal.slice() };
+<<<<<<< HEAD
 		__lastStockData = { bajo: bajo.slice(), ideal: ideal.slice() };
 		// Mostrar solo los primeros 5, con opción de ver más/reducir
 	let mostrarBajo = bajoUl.getAttribute('data-ver-mas') === 'true' ? bajo : bajo.slice(0,10);
@@ -66,6 +70,22 @@
 		if(ideal.length > 5){
 			idealUl.innerHTML += `<li class="st-item st-toggle"><button id="btn-ver-mas-ideal" class="st-toggle-btn btn-ver-mas">${idealUl.getAttribute('data-ver-mas') === 'true' ? 'Ver menos' : 'Ver más'}</button></li>`;
 		}
+=======
+		bajoUl.innerHTML = bajo.length? bajo.map(it=>{
+			const pct = (it.cantidad_ideal? Math.max(0, Math.round((it.cantidad/Math.max(1,it.cantidad_ideal))*100)) : 0);
+				return `<li class="st-item st-low" data-prod-id="${it.id}" data-prod-nombre="${escapeHtml(it.nombre)}">
+				<span class="st-name">${escapeHtml(it.nombre)}</span>
+				<span class="st-badge">${it.cantidad}/${it.cantidad_ideal}</span>
+					<span class="st-bar"><i style="width:${pct}%;"></i></span>
+			</li>`;
+		}).join('') : '<li class="st-item empty">Sin alertas</li>';
+		idealUl.innerHTML = ideal.length? ideal.map(it=>{
+			return `<li class="st-item st-ideal">
+				<span class="st-name">${escapeHtml(it.nombre)}</span>
+				<span class="st-badge good">${it.cantidad}/${it.cantidad_ideal}</span>
+			</li>`;
+		}).join('') : '<li class="st-item empty">Sin coincidencias</li>';
+>>>>>>> 35867f076f8f8de083c899882dd5782053382bb9
 
 
 	}
@@ -161,7 +181,6 @@
 		await cargarAnalisis();
 		bindModalRestockUI();
 		cargarProductosAlmacenParaRestock();
-
 		// Listeners para ver más/ver menos
 		document.getElementById('stock-bajo-list').addEventListener('click', function(e){
 			if(e.target && e.target.id === 'btn-ver-mas-bajo'){
