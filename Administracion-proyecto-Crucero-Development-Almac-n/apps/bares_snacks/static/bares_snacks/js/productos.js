@@ -122,11 +122,33 @@
 			const rows = data.items.map(it=>`<tr><td>${escapeHtml(it.ingrediente_nombre||'')}</td><td style="text-align:right;">${it.cantidad??''}</td><td>${escapeHtml(it.unidad||'')}</td></tr>`).join('');
 			body.innerHTML = `<table class="tabla-ingredientes-detalle"><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>${rows}</tbody></table>`;
 		}catch(err){ console.error(err); body.innerHTML='<div class="error">No se pudo cargar la receta.</div>'; }
-		const btnClose = document.getElementById('close-modal-detalle');
-		btnClose?.addEventListener('click', ()=>{ modal.setAttribute('aria-hidden','true'); document.body.style.overflow=''; });
-		modal.addEventListener('click', e=>{ if(e.target===modal){ modal.setAttribute('aria-hidden','true'); document.body.style.overflow=''; } });
-		document.addEventListener('keydown', function esc(e){ if(e.key==='Escape'){ modal.setAttribute('aria-hidden','true'); document.body.style.overflow=''; document.removeEventListener('keydown', esc); } });
 	}
+
+	document.addEventListener('DOMContentLoaded', function(){
+		// Modal detalle producto
+		var modalDetalle = document.getElementById('modal-detalle-producto');
+		var btnCloseDetalle = document.getElementById('close-modal-detalle');
+		if (btnCloseDetalle && modalDetalle) {
+			btnCloseDetalle.addEventListener('click', function() {
+				modalDetalle.setAttribute('aria-hidden','true');
+				document.body.style.overflow='';
+			});
+		}
+		if (modalDetalle) {
+			modalDetalle.addEventListener('click', function(e) {
+				if(e.target===modalDetalle){
+					modalDetalle.setAttribute('aria-hidden','true');
+					document.body.style.overflow='';
+				}
+			});
+			document.addEventListener('keydown', function escDetalleListener(e) {
+				if(e.key==='Escape' && modalDetalle.getAttribute('aria-hidden')==='false'){
+					modalDetalle.setAttribute('aria-hidden','true');
+					document.body.style.overflow='';
+				}
+			});
+		}
+	});
 
 	function abrirEdicionProducto(p){
 		// Activar modo edición y prellenar formulario con los datos actuales

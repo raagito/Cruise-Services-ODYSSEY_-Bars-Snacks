@@ -26,6 +26,10 @@ urlpatterns = [
     path('pedidos/', views.pedidos_list_api, name='pedidos-list-api'),
     path('pedido/<int:pedido_id>/estado/', views.actualizar_estado_pedido_api, name='actualizar-estado-pedido-api'),
     path('empleado/<int:empleado_id>/', views.empleado_info_api, name='empleado-info-api'),
+    # Analíticas
+    path('analisis/mas-vendidos/', views.analisis_mas_vendidos_api, name='analisis-mas-vendidos-api'),
+    path('analisis/stock/', views.analisis_stock_api, name='analisis-stock-api'),
+    path('analisis/restock/', views.solicitar_restock_api, name='analisis-restock-api'),
 ]
 
 if settings.DEBUG:
