@@ -1,9 +1,6 @@
 (function(){
 	let __lastStockData = { bajo: [], ideal: [] };
-<<<<<<< HEAD
 	let __stockPage = { bajo: 0, ideal: 0 };
-=======
->>>>>>> 35867f076f8f8de083c899882dd5782053382bb9
 	function escapeHtml(str){
 		if(str==null) return '';
 		return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -45,47 +42,45 @@
 		const bajo = (data && data.bajo) || [];
 		const ideal = (data && data.ideal) || [];
 		__lastStockData = { bajo: bajo.slice(), ideal: ideal.slice() };
-<<<<<<< HEAD
-		__lastStockData = { bajo: bajo.slice(), ideal: ideal.slice() };
-		// Mostrar solo los primeros 5, con opción de ver más/reducir
-	let mostrarBajo = bajoUl.getAttribute('data-ver-mas') === 'true' ? bajo : bajo.slice(0,10);
-	let mostrarIdeal = idealUl.getAttribute('data-ver-mas') === 'true' ? ideal : ideal.slice(0,10);
 
+		// PAGINACIÓN
+		const PAGE_SIZE = 5;
+		// Bajo
+		let pageBajo = __stockPage.bajo;
+		let totalPagesBajo = Math.ceil(bajo.length / PAGE_SIZE);
+		let mostrarBajo = bajo.slice(pageBajo * PAGE_SIZE, (pageBajo + 1) * PAGE_SIZE);
 		bajoUl.innerHTML = mostrarBajo.length ? mostrarBajo.map(it=>{
 			return `<li class="st-item st-low" data-prod-id="${it.id}" data-prod-nombre="${escapeHtml(it.nombre)}" style="padding:4px 8px;min-height:unset;">
 				<span class="st-name" style="font-size:.92rem;">${escapeHtml(it.nombre)}</span>
 				<span class="st-badge">${it.cantidad}/${it.cantidad_ideal}</span>
 			</li>`;
 		}).join('') : '<li class="st-item empty">Sin alertas</li>';
-		if(bajo.length > 5){
-			bajoUl.innerHTML += `<li class="st-item st-toggle"><button id="btn-ver-mas-bajo" class="st-toggle-btn btn-ver-mas">${bajoUl.getAttribute('data-ver-mas') === 'true' ? 'Ver menos' : 'Ver más'}</button></li>`;
+		// Flechas y puntitos en una sola fila, compactos
+		if(totalPagesBajo > 1){
+			bajoUl.innerHTML += `<li class="st-toggle" style="padding:2px 0;background:none;border:none;min-height:unset;">
+				<button id="btn-bajo-prev" class="st-toggle-btn" ${pageBajo === 0 ? 'disabled' : ''} style="margin-right:2px;">&lt;</button>
+				<span class="st-puntos">${Array.from({length: totalPagesBajo}, (_,i)=>`<span class='st-punto${i===pageBajo?' active':''}'></span>`).join('')}</span>
+				<button id="btn-bajo-next" class="st-toggle-btn" ${pageBajo === totalPagesBajo-1 ? 'disabled' : ''} style="margin-left:2px;">&gt;</button>
+			</li>`;
 		}
 
+		// Ideal
+		let pageIdeal = __stockPage.ideal;
+		let totalPagesIdeal = Math.ceil(ideal.length / PAGE_SIZE);
+		let mostrarIdeal = ideal.slice(pageIdeal * PAGE_SIZE, (pageIdeal + 1) * PAGE_SIZE);
 		idealUl.innerHTML = mostrarIdeal.length ? mostrarIdeal.map(it=>{
 			return `<li class="st-item st-ideal" style="padding:4px 8px;min-height:unset;">
 				<span class="st-name" style="font-size:.92rem;">${escapeHtml(it.nombre)}</span>
 				<span class="st-badge good">${it.cantidad}/${it.cantidad_ideal}</span>
 			</li>`;
 		}).join('') : '<li class="st-item empty">Sin coincidencias</li>';
-		if(ideal.length > 5){
-			idealUl.innerHTML += `<li class="st-item st-toggle"><button id="btn-ver-mas-ideal" class="st-toggle-btn btn-ver-mas">${idealUl.getAttribute('data-ver-mas') === 'true' ? 'Ver menos' : 'Ver más'}</button></li>`;
+		if(totalPagesIdeal > 1){
+			idealUl.innerHTML += `<li class="st-toggle" style="padding:2px 0;background:none;border:none;min-height:unset;">
+				<button id="btn-ideal-prev" class="st-toggle-btn" ${pageIdeal === 0 ? 'disabled' : ''} style="margin-right:2px;">&lt;</button>
+				<span class="st-puntos">${Array.from({length: totalPagesIdeal}, (_,i)=>`<span class='st-punto${i===pageIdeal?' active':''}'></span>`).join('')}</span>
+				<button id="btn-ideal-next" class="st-toggle-btn" ${pageIdeal === totalPagesIdeal-1 ? 'disabled' : ''} style="margin-left:2px;">&gt;</button>
+			</li>`;
 		}
-=======
-		bajoUl.innerHTML = bajo.length? bajo.map(it=>{
-			const pct = (it.cantidad_ideal? Math.max(0, Math.round((it.cantidad/Math.max(1,it.cantidad_ideal))*100)) : 0);
-				return `<li class="st-item st-low" data-prod-id="${it.id}" data-prod-nombre="${escapeHtml(it.nombre)}">
-				<span class="st-name">${escapeHtml(it.nombre)}</span>
-				<span class="st-badge">${it.cantidad}/${it.cantidad_ideal}</span>
-					<span class="st-bar"><i style="width:${pct}%;"></i></span>
-			</li>`;
-		}).join('') : '<li class="st-item empty">Sin alertas</li>';
-		idealUl.innerHTML = ideal.length? ideal.map(it=>{
-			return `<li class="st-item st-ideal">
-				<span class="st-name">${escapeHtml(it.nombre)}</span>
-				<span class="st-badge good">${it.cantidad}/${it.cantidad_ideal}</span>
-			</li>`;
-		}).join('') : '<li class="st-item empty">Sin coincidencias</li>';
->>>>>>> 35867f076f8f8de083c899882dd5782053382bb9
 
 
 	}
@@ -181,19 +176,37 @@
 		await cargarAnalisis();
 		bindModalRestockUI();
 		cargarProductosAlmacenParaRestock();
-		// Listeners para ver más/ver menos
+		// Listeners para flechas y puntitos
 		document.getElementById('stock-bajo-list').addEventListener('click', function(e){
-			if(e.target && e.target.id === 'btn-ver-mas-bajo'){
-				const ul = document.getElementById('stock-bajo-list');
-				ul.setAttribute('data-ver-mas', ul.getAttribute('data-ver-mas') === 'true' ? 'false' : 'true');
-				renderStock(__lastStockData);
+			if(e.target && e.target.id === 'btn-bajo-prev'){
+				if(__stockPage.bajo > 0){
+					__stockPage.bajo--;
+					renderStock(__lastStockData);
+				}
+			}
+			if(e.target && e.target.id === 'btn-bajo-next'){
+				let bajo = __lastStockData.bajo || [];
+				let totalPagesBajo = Math.ceil(bajo.length / 5);
+				if(__stockPage.bajo < totalPagesBajo-1){
+					__stockPage.bajo++;
+					renderStock(__lastStockData);
+				}
 			}
 		});
 		document.getElementById('stock-ideal-list').addEventListener('click', function(e){
-			if(e.target && e.target.id === 'btn-ver-mas-ideal'){
-				const ul = document.getElementById('stock-ideal-list');
-				ul.setAttribute('data-ver-mas', ul.getAttribute('data-ver-mas') === 'true' ? 'false' : 'true');
-				renderStock(__lastStockData);
+			if(e.target && e.target.id === 'btn-ideal-prev'){
+				if(__stockPage.ideal > 0){
+					__stockPage.ideal--;
+					renderStock(__lastStockData);
+				}
+			}
+			if(e.target && e.target.id === 'btn-ideal-next'){
+				let ideal = __lastStockData.ideal || [];
+				let totalPagesIdeal = Math.ceil(ideal.length / 5);
+				if(__stockPage.ideal < totalPagesIdeal-1){
+					__stockPage.ideal++;
+					renderStock(__lastStockData);
+				}
 			}
 		});
 	});

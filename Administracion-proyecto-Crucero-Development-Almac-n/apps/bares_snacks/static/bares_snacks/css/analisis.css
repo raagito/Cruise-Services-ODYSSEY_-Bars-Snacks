@@ -1,42 +1,60 @@
 
-.stock-dots {
-	display: inline-flex;
-	gap: 4px;
-	margin: 0 8px;
-	vertical-align: middle;
+/* Paginación amigable para stock */
+.st-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 2px 0 0 0;
+	background: none !important;
+	border: none !important;
+	min-height: unset;
 }
-.stock-dots .dot {
+.st-puntos {
+	display: flex;
+	gap: 4px;
+	justify-content: center;
+	align-items: center;
+	margin: 0 2px;
+}
+.st-punto {
 	width: 8px;
 	height: 8px;
 	border-radius: 50%;
 	background: #e0e7ef;
 	display: inline-block;
-	transition: background .2s;
+	transition: background .2s, box-shadow .2s;
+	box-shadow: 0 0 0 0 #0ea5e9;
 }
-.stock-dots .dot.active {
+.st-punto.active {
 	background: #0ea5e9;
+	box-shadow: 0 0 0 2px #38bdf8;
+	outline: 1px solid #0ea5e9;
 }
-.btn-ver-mas[disabled] {
-	opacity: 0.5;
-	cursor: default;
-}
-.btn-ver-mas {
+.st-toggle-btn {
 	background: linear-gradient(90deg,#0ea5e9,#38bdf8);
 	color: #fff;
 	border: none;
-	border-radius: 999px;
-	padding: 6px 18px;
-	font-weight: 700;
+	border-radius: 50%;
+	width: 22px;
+	height: 22px;
+	font-size: 1rem;
+	font-weight: bold;
 	cursor: pointer;
-	margin: 0 auto;
-	display: block;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	box-shadow: 0 2px 8px -4px #0ea5e9a0;
 	transition: filter .2s, box-shadow .2s;
+	margin: 0 1px;
 }
-.btn-ver-mas:hover {
-	filter: brightness(.95);
-	box-shadow: 0 4px 16px -6px #0ea5e9a0;
+.st-toggle-btn[disabled] {
+	opacity: 0.5;
+	cursor: default;
+	background: #e0e7ef;
+	color: #94a3b8;
 }
+/* Elimina estilos antiguos de ver más, ahora usamos flechas y puntitos */
 .analisis-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:16px 0 32px}
 .analisis-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 8px 22px -14px rgba(15,23,42,.15);overflow:hidden}
 .analisis-card .card-head{padding:12px 14px 8px;background:linear-gradient(180deg,#f8fafc,#fff);border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px}
