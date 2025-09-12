@@ -952,3 +952,136 @@ def empleado_info_api(request, empleado_id: int):
       'puesto': e.puesto,
     }
   })
+
+
+# ===================== ANALÍTICAS ===================== #
+@require_GET
+def analisis_mas_vendidos_api(request):
+  """Devuelve productos más vendidos agrupados por categoría (historial = pedidos completados).
+  Query params: limit (por categoría), default 5.
+  Respuesta: { success, categorias: [{ categoria, items: [{producto_id,nombre,total}]}] }
+  """
+  from apps.bares_snacks.models import DetallePedido
+  try:
+    limit = int(request.GET.get('limit') or 5)
+    if limit <= 0:
+      limit = 5
+  except ValueError:
+    limit = 5
+  # Aggregate total vendido por producto en pedidos completados
+  qs = (DetallePedido.objects
+        .filter(pedido__estado='completado')
+        .values('producto_id', 'producto__nombre', 'producto__categoria')
+        .annotate(total=Sum('cantidad'))
+        .order_by('producto__categoria', '-total'))
+  # Agrupar por categoría
+  categorias = {}
+  for row in qs:
+    cat = row.get('producto__categoria') or 'Sin categoría'
+    categorias.setdefault(cat, [])
+    categorias[cat].append({
+      'producto_id': row['producto_id'],
+      'nombre': row.get('producto__nombre') or '',
+      'total': int(row['total'] or 0),
+    })
+  # Limitar por categoría
+  resp = []
+  for cat, items in categorias.items():
+    resp.append({
+      'categoria': cat,
+      'items': items[:limit]
+    })
+  # Orden alfabético por categoría
+  resp.sort(key=lambda x: (x['categoria'] or '').lower())
+  return JsonResponse({'success': True, 'categorias': resp})
+
+
+@require_GET
+def analisis_stock_api(request):
+  """Devuelve resumen de stock: bajo (CRITICO/BAJO) y lista de productos con stock ideal (>= cantidad_ideal).
+  Query params: limit_ideal (default 10)
+  Respuesta: { success, bajo: [...], ideal: [...] }
+  """
+  from apps.almacen.models import Producto as ProdAlm
+  try:
+    limit_ideal = int(request.GET.get('limit_ideal') or 10)
+  except ValueError:
+    limit_ideal = 10
+  bajo = []
+  ideal = []
+  for p in ProdAlm.objects.select_related('seccion__almacen').all():
+    try:
+      actual = int(p.cantidad)
+    except Exception:
+      actual = 0
+    item = {
+      'id': p.id,
+      'nombre': p.nombre,
+      'tipo': p.tipo,
+      'subtipo': p.subtipo,
+      'cantidad': actual,
+      'cantidad_ideal': int(p.cantidad_ideal or 0),
+      'estado': p.estado,
+    }
+    # Bajo: estrictamente por debajo del 30% del ideal
+    try:
+      ci = int(p.cantidad_ideal or 0)
+    except Exception:
+      ci = 0
+    if ci > 0 and actual < (0.3 * ci):
+      bajo.append(item)
+    if actual >= (p.cantidad_ideal or 0):
+      ideal.append(item)
+  # ordenar bajo por % faltante desc
+  def falta_ratio(it):
+    ideal = it['cantidad_ideal'] or 1
+    return max(0.0, 1.0 - (it['cantidad'] / ideal if ideal else 0))
+  bajo.sort(key=falta_ratio, reverse=True)
+  # ordenar ideal por cantidad_ideal desc y limitar
+  ideal.sort(key=lambda it: it['cantidad_ideal'], reverse=True)
+  if limit_ideal and limit_ideal > 0:
+    ideal = ideal[:limit_ideal]
+  return JsonResponse({'success': True, 'bajo': bajo, 'ideal': ideal})
+
+
+@csrf_exempt
+@require_POST
+def solicitar_restock_api(request):
+  """Crea una o varias Órdenes de Compra para reponer stock de productos de almacén.
+  Entrada:
+    - { producto_id, cantidad, comentario? }
+    - o { items: [{ producto_id, cantidad }], comentario? }
+  Salida: { success, creados: [{ id, producto_id, cantidad, estado }] }
+  """
+  import json
+  try:
+    payload = json.loads(request.body or '{}')
+  except json.JSONDecodeError:
+    return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+  items = payload.get('items')
+  if not items:
+    pid = payload.get('producto_id')
+    cant = payload.get('cantidad')
+    if pid and cant:
+      items = [{ 'producto_id': pid, 'cantidad': cant }]
+  if not items or not isinstance(items, list):
+    return JsonResponse({'success': False, 'error': 'items vacío'}, status=400)
+  from apps.almacen.models import Producto as ProdAlm, OrdenCompra
+  creados = []
+  for it in items:
+    try:
+      pid = int(it.get('producto_id'))
+      cant = int(it.get('cantidad'))
+    except Exception:
+      continue
+    if pid <= 0 or cant <= 0:
+      continue
+    try:
+      prod = ProdAlm.objects.get(id=pid)
+    except ProdAlm.DoesNotExist:
+      continue
+    oc = OrdenCompra.objects.create(producto=prod, cantidad_productos=cant, precio_lote=0, estado='PENDIENTE')
+    creados.append({ 'id': oc.id, 'producto_id': prod.id, 'cantidad': cant, 'estado': oc.estado })
+  if not creados:
+    return JsonResponse({'success': False, 'error': 'No se pudo crear ninguna orden'}, status=400)
+  return JsonResponse({'success': True, 'creados': creados})
