@@ -73,22 +73,39 @@ let ingredientesSeleccionadosGlobal = [];
 
 	async function api(u,opt={}){ const r= await fetch(u,{headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json','Content-Type':'application/json'},credentials:'same-origin',...opt}); if(!r.ok) throw new Error(r.status); return r.json(); }
 
-	async function cargarCategorias(){ try { const data = await api('/bar/categorias-almacen/'); state.categorias = Array.isArray(data)? data.map(c=>({ id: c.id??c.pk??c.codigo??c.code??c.value, nombre: c.nombre??c.name??c.descripcion??'Sin nombre', subcategorias: c.subcategorias??c.subtipos??c.sub_tipos??c.subTipos??c.children??c.lista_subtipos??[] })) : []; poblarSelectCategorias(); } catch(e){ console.error('Cat',e);} }
+	async function cargarCategorias(){
+		try {
+			const data = await api('/bar/categorias-almacen/');
+			// Solo dejar los que tienen mostrar:true
+				state.categorias = Array.isArray(data)
+					? data.filter(c => c.mostrar).slice(0,3).map(c => ({
+							id: c.id??c.pk??c.codigo??c.code??c.value,
+							nombre: c.nombre??c.name??c.descripcion??'Sin nombre',
+							subcategorias: c.subcategorias??c.subtipos??c.sub_tipos??c.subTipos??c.children??c.lista_subtipos??[]
+						}))
+					: [];
+			poblarSelectCategorias();
+		} catch(e){
+			console.error('Cat',e);
+		}
+	}
 	function poblarSelectCategorias(){ selectTipoAlmacen.innerHTML='<option value="">Selecciona tipo</option>'+ state.categorias.map(c=>`<option value="${c.id}">${escapeHtml(c.nombre)}</option>`).join(''); selectSubtipoAlmacen.innerHTML='<option value="">Selecciona subtipo</option>'; }
 	function getSubtipos(c){ return c? c.subcategorias||c.subtipos||c.sub_tipos||c.subTipos||c.children||[]:[]; }
 	function onChangeCategoria() {
 		const catId = selectTipoAlmacen.value;
 		const cat = state.categorias.find(c => String(c.id) === catId);
 		const subs = getSubtipos(cat);
-		// Guardar ingredientes seleccionados en variable global antes de limpiar
-		ingredientesSeleccionadosGlobal = obtenerIngredientesSeleccionados();
+	// Guardar ingredientes seleccionados en variable global antes de limpiar
+	const actuales = obtenerIngredientesSeleccionados();
+	// Fusionar sin duplicados
+	ingredientesSeleccionadosGlobal = actuales.concat(ingredientesSeleccionadosGlobal.filter(ingOld => !actuales.some(ingNew => ingNew.id === ingOld.id)));
 		if (!cat) {
 			selectSubtipoAlmacen.innerHTML = '<option value="">Selecciona subtipo</option>';
 			selectIngredientes.innerHTML = '';
-			limpiarTags();
-			// Restaurar los tags de ingredientes seleccionados globalmente
-			ingredientesSeleccionadosGlobal.forEach(ing => agregarTagIngrediente(ing));
-			actualizarResumen();
+		limpiarTags();
+		// Restaurar todos los tags de ingredientes seleccionados globalmente
+		ingredientesSeleccionadosGlobal.forEach(ing => agregarTagIngrediente(ing));
+		actualizarResumen();
 			return;
 		}
 		if (!subs.length) {
@@ -113,14 +130,16 @@ let ingredientesSeleccionadosGlobal = [];
 	async function onChangeSubcategoria() {
 		const catId = selectTipoAlmacen.value;
 		const subId = selectSubtipoAlmacen.value;
-		// Guardar ingredientes seleccionados en variable global antes de limpiar
-		ingredientesSeleccionadosGlobal = obtenerIngredientesSeleccionados();
+	// Guardar ingredientes seleccionados en variable global antes de limpiar
+	const actuales = obtenerIngredientesSeleccionados();
+	// Fusionar sin duplicados
+	ingredientesSeleccionadosGlobal = actuales.concat(ingredientesSeleccionadosGlobal.filter(ingOld => !actuales.some(ingNew => ingNew.id === ingOld.id)));
 		if (!catId || !subId) {
 			selectIngredientes.innerHTML = '';
 			if (tablaIngredientes) tablaIngredientes.innerHTML = '';
-			limpiarTags();
-			// Restaurar los tags de ingredientes seleccionados globalmente
-			ingredientesSeleccionadosGlobal.forEach(ing => agregarTagIngrediente(ing));
+		limpiarTags();
+		// Restaurar todos los tags de ingredientes seleccionados globalmente
+		ingredientesSeleccionadosGlobal.forEach(ing => agregarTagIngrediente(ing));
 			return;
 		}
 		const key = `${catId}|${subId}`;
@@ -216,7 +235,19 @@ let ingredientesSeleccionadosGlobal = [];
 			const data = await api(`/bar/producto-bar/${encodeURIComponent(p.id)}/receta/`);
 			if(!data.success){ throw new Error(data.error||'Error'); }
 			if(!data.items.length){ body.innerHTML = '<div class="vacio">Sin ingredientes de receta.</div>'; return; }
-			const rows = data.items.map(it=>`<tr><td>${escapeHtml(it.ingrediente_nombre||'')}</td><td style="text-align:right;">${it.cantidad??''}</td><td>${escapeHtml(it.unidad||'')}</td></tr>`).join('');
+						const rows = data.items.map(it=>{
+								let cantidad = (typeof it.cantidad === 'number') ? it.cantidad.toFixed(2) : (parseFloat(it.cantidad).toFixed(2) || it.cantidad || '');
+								let unidad = (it.unidad||'').toUpperCase();
+								let equivalencia = '';
+								if(unidad === 'K') {
+									let gramos = parseFloat(it.cantidad) * 1000;
+									if(!isNaN(gramos)) equivalencia = `<span class='eq' style='color:#64748b;font-size:0.9em;'>(= ${gramos.toFixed(2)} g)</span>`;
+								} else if(unidad === 'L') {
+									let ml = parseFloat(it.cantidad) * 1000;
+									if(!isNaN(ml)) equivalencia = `<span class='eq' style='color:#64748b;font-size:0.9em;'>(= ${ml.toFixed(2)} ml)</span>`;
+								}
+								return `<tr><td>${escapeHtml(it.ingrediente_nombre||'')}</td><td style="text-align:right;">${cantidad} ${equivalencia}</td><td>${escapeHtml(it.unidad||'')}</td></tr>`;
+						}).join('');
 			body.innerHTML = `<table class="tabla-ingredientes-detalle"><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>${rows}</tbody></table>`;
 		}catch(err){ console.error(err); body.innerHTML='<div class="error">No se pudo cargar la receta.</div>'; }
 	}
@@ -292,20 +323,49 @@ let ingredientesSeleccionadosGlobal = [];
 	// Limpiar solo los tags de ingredientes
 	if(contenedorTags) contenedorTags.innerHTML = '';
 
-	// Cargar ingredientes seleccionados desde la receta
+
+
+	// Mostrar ingredientes actuales de la receta (solo informativo)
+	const contActuales = document.getElementById('ingredientes-actuales');
+	const listaActuales = document.getElementById('ingredientes-actuales-list');
+	if(contActuales && listaActuales) {
+		contActuales.style.display = 'none';
+		listaActuales.innerHTML = '';
+	}
 	if(p.id && p.origen === 'producto_bar'){
 		try {
 			const recetaResp = await api(`/bar/producto-bar/${encodeURIComponent(p.id)}/receta/`);
 			if(recetaResp.success && Array.isArray(recetaResp.items)){
-				// Limpiar selección previa
-				if(selectIngredientes){
-					Array.from(selectIngredientes.options).forEach(opt => opt.selected = false);
+				// Mostrar ingredientes actuales en formato tabla igual que en detalle
+				if(contActuales && listaActuales){
+					if(recetaResp.items.length){
+						let rows = recetaResp.items.map(it=>{
+							let cantidad = (typeof it.cantidad === 'number') ? it.cantidad.toFixed(2) : (parseFloat(it.cantidad).toFixed(2) || it.cantidad || '');
+							let unidad = (it.unidad||'').toUpperCase();
+							let equivalencia = '';
+							if(unidad === 'K') {
+								let gramos = parseFloat(it.cantidad) * 1000;
+								if(!isNaN(gramos)) equivalencia = `<span class='eq' style='color:#64748b;font-size:0.9em;'>(= ${gramos.toFixed(2)} g)</span>`;
+							} else if(unidad === 'L') {
+								let ml = parseFloat(it.cantidad) * 1000;
+								if(!isNaN(ml)) equivalencia = `<span class='eq' style='color:#64748b;font-size:0.9em;'>(= ${ml.toFixed(2)} ml)</span>`;
+							}
+							return `<tr><td>${escapeHtml(it.ingrediente_nombre||'')}</td><td style=\"text-align:right;\">${cantidad} ${equivalencia}</td><td>${escapeHtml(it.unidad||'')}</td></tr>`;
+						}).join('');
+						listaActuales.innerHTML = `<table class=\"tabla-ingredientes-detalle\"><thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>${rows}</tbody></table>`;
+						contActuales.style.display = '';
+					} else {
+						listaActuales.innerHTML = '<div class=\"vacio\">Sin ingredientes de receta.</div>';
+						contActuales.style.display = 'none';
+					}
 				}
+				// También agregar los tags para edición normal
 				recetaResp.items.forEach(item => {
 					agregarTagIngrediente({
 						id: item.ingrediente_id,
 						nombre: item.ingrediente_nombre,
 						unidad: item.unidad || '',
+						cantidad: item.cantidad,
 						stock: ''
 					});
 					// Marcar como seleccionado en el select múltiple
@@ -364,20 +424,88 @@ let ingredientesSeleccionadosGlobal = [];
 	// (inline summary eliminado en favor de box global)
 
 	function onAddIngredientesDesdeSelect(){ if(!selectIngredientes) return; Array.from(selectIngredientes.selectedOptions).forEach(o=>{ const id=o.value; if(!id) return; if(contenedorTags.querySelector(`[data-id="${CSS.escape(id)}"]`)) return; const unidad=o.getAttribute('data-unidad')||''; const stock=o.getAttribute('data-stock')||''; const nombreRaw=o.textContent.trim().replace(/\s*\([^)]*\)$/,''); agregarTagIngrediente({id, nombre:nombreRaw, unidad, stock}); }); selectIngredientes.selectedIndex=-1; Array.from(selectIngredientes.options).forEach(o=>o.selected=false); actualizarResumen(); }
-	function agregarTagIngrediente(obj){ if(!contenedorTags) return; const tag=document.createElement('div'); tag.className='ingrediente-tag'; tag.dataset.id=obj.id; const stockNum = parseFloat(obj.stock); const tieneStock = !isNaN(stockNum) && stockNum>0; const statusTxt = tieneStock ? 'Disponible' : 'Sin stock'; const stockTxt=obj.stock!==''?`Stock: ${escapeHtml(obj.stock)}`:''; tag.innerHTML=`<span class="nombre">${escapeHtml(obj.nombre)}</span>${obj.unidad?`<span class="unidad">${escapeHtml(obj.unidad)}</span>`:''}${stockTxt?`<span class=\"stock\">${stockTxt}</span>`:''}<span class="status ${tieneStock?'disponible':'sin-stock'}">${statusTxt}</span><button type="button" class="remove" aria-label="Eliminar">×</button>`; tag.querySelector('button.remove').addEventListener('click',()=>{ tag.remove(); actualizarResumen(); }); contenedorTags.appendChild(tag); }
+	function agregarTagIngrediente(obj){
+		if(!contenedorTags) return;
+		const tag=document.createElement('div');
+		tag.className='ingrediente-tag';
+		tag.dataset.id=obj.id;
+		const stockNum = parseFloat(obj.stock);
+		const tieneStock = !isNaN(stockNum) && stockNum>0;
+		const statusTxt = tieneStock ? 'Disponible' : 'Sin stock';
+		const stockTxt=obj.stock!==''?`Stock: ${escapeHtml(obj.stock)}`:'';
+		// Input para cantidad editable
+		const cantidad = (typeof obj.cantidad !== 'undefined') ? obj.cantidad : '';
+			let unidadDesc = '';
+			if(obj.unidad && obj.unidad.toUpperCase() === 'K') unidadDesc = ' (kilogramos)';
+			else if(obj.unidad && obj.unidad.toUpperCase() === 'L') unidadDesc = ' (litros)';
+			tag.innerHTML = `
+				<span class="nombre">${escapeHtml(obj.nombre)}</span>
+				<input type="number" class="input-cantidad" min="0" step="0.001" placeholder="Cantidad" value="${cantidad}" style="width:60px; margin:0 6px;" />
+				<span class="conversion-eq"></span>
+				${obj.unidad?`<span class="unidad">${escapeHtml(obj.unidad)}${unidadDesc}</span>`:''}
+				${stockTxt?`<span class=\"stock\">${stockTxt}</span>`:''}
+				<span class="status ${tieneStock?'disponible':'sin-stock'}">${statusTxt}</span>
+				<button type="button" class="remove" aria-label="Eliminar">×</button>
+			`;
+		// Conversión en tiempo real
+		const inputCantidad = tag.querySelector('.input-cantidad');
+		const eqSpan = tag.querySelector('.conversion-eq');
+					function actualizarEq(){
+						let val = parseFloat(inputCantidad.value);
+						let unidad = (obj.unidad||'').toUpperCase();
+						let eq = '';
+						if(!isNaN(val)){
+							if(unidad==='K') eq = `${(val*1000).toFixed(3)} g`;
+							else if(unidad==='L') eq = `${(val*1000).toFixed(3)} ml`;
+						}
+						eqSpan.textContent = eq;
+					}
+		inputCantidad && inputCantidad.addEventListener('input', actualizarEq);
+		// Inicializar conversión si ya hay valor
+		setTimeout(actualizarEq, 10);
+		tag.querySelector('button.remove').addEventListener('click',()=>{ tag.remove(); actualizarResumen(); });
+		contenedorTags.appendChild(tag);
+	}
 	function limpiarTags(){ if(contenedorTags) contenedorTags.innerHTML=''; }
-	function obtenerIngredientesSeleccionados(){ if(!contenedorTags) return []; return Array.from(contenedorTags.querySelectorAll('.ingrediente-tag')).map(t=>({ id:t.dataset.id, nombre:t.querySelector('.nombre')?.textContent.trim()||'', unidad:t.querySelector('.unidad')?.textContent.trim()||'', stock:t.querySelector('.stock')?.textContent.trim()||'' })); }
+	function obtenerIngredientesSeleccionados(){
+		if(!contenedorTags) return [];
+		return Array.from(contenedorTags.querySelectorAll('.ingrediente-tag')).map(t=>({
+			id: t.dataset.id,
+			nombre: t.querySelector('.nombre')?.textContent.trim()||'',
+			unidad: t.querySelector('.unidad')?.textContent.trim()||'',
+			stock: t.querySelector('.stock')?.textContent.trim()||'',
+			cantidad: (()=>{
+				const input = t.querySelector('.input-cantidad');
+				return input ? parseFloat(input.value) || 0 : 0;
+			})()
+		}));
+	}
 
 	async function onSubmit(e){ e.preventDefault(); if(state.cargando) return; const fd=new FormData(form); const ingredientesSeleccionados=obtenerIngredientesSeleccionados(); const nombre=(fd.get('nombre')||'').trim()||inputNombre.value.trim(); const tipoCat= fd.get('tipo_almacen')||selectTipoAlmacen.value||''; const subTipoCat= fd.get('subtipo_almacen')||selectSubtipoAlmacen.value||''; const plan = fd.get('plan')||selectPlan.value||'all_inclusive'; const esPremium = plan==='premium'; const precioBruto = parseFloat(fd.get('precio')||inputPrecio.value||'0')||0; if(!nombre||!tipoCat||!subTipoCat){ alert('Completa nombre, tipo y subtipo.'); return;} if(esPremium && precioBruto<=0){ alert('Ingresa precio (>0) para Premium.'); return;} const precioVal = precioBruto; const categoriaFiltroVal = document.getElementById('categoria-filtro-select')?.value||''; const payloadBase={ nombre, categoria: categoriaFiltroVal, tipo_categoria: tipoCat, subtipo_categoria: subTipoCat, tipo: esPremium?'pago':'gratis', precio: precioVal };
 	try { 
 		state.cargando=true; 
 		let data=null; 
 		if(state.edit.active && state.edit.producto){
-			// Actualizar
-			const payload = { id: state.edit.producto.id, ...payloadBase, ingredientes: ingredientesSeleccionados.map(i=>i.id) };
+			// Actualizar producto
+			const payload = { id: state.edit.producto.id, ...payloadBase };
 			const resp = await fetch('/bar/actualizar-producto-bar/', { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(payload) });
 			data = await resp.json();
 			if(!resp.ok || !data.success){ console.error('Error actualización', data); alert('Error actualizando producto'); return; }
+			// Guardar receta/ingredientes
+			console.log('Ingredientes seleccionados para receta:', ingredientesSeleccionados);
+			const recetaPayload = { items: ingredientesSeleccionados.map(i=>({ id: i.id, ingrediente_id: i.id, cantidad: i.cantidad, unidad: i.unidad })) };
+			console.log('Payload enviado a guardar-receta:', recetaPayload);
+		const recetaResp = await fetch(`/bar/producto-bar/${state.edit.producto.id}/receta/guardar/`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+				body: JSON.stringify(recetaPayload)
+			});
+			const recetaData = await recetaResp.json();
+			if(!recetaResp.ok || !recetaData.success){
+				console.error('Error guardando receta', recetaData);
+				alert('Error guardando ingredientes de la receta: ' + (recetaData.error || JSON.stringify(recetaData)));
+				return;
+			}
 			// Refrescar en memoria
 			const idx = state.productos.findIndex(x=> String(x.id)===String(state.edit.producto.id));
 			if(idx>=0){ state.productos[idx] = { ...state.productos[idx], nombre, tipo: payloadBase.tipo, precio: precioVal, categoria: categoriaFiltroVal, tipo_categoria: tipoCat, subtipo_categoria: subTipoCat, categoria_id: tipoCat, subcategoria_id: subTipoCat } }
