@@ -481,8 +481,14 @@
                 </div>
                 <!-- Tabla dinámica de ingredientes filtrados por Tipo/Subtipo -->
                 <div class="form-row">
-                  <div id="ingredientes-tabla" class="ingredientes-tabla" aria-live="polite" style="width:100%; overflow:auto;">
-                    <!-- Se llena por JS con los productos de almacén según Tipo/Subtipo -->
+                  <div id="ingredientes-tabla" class="ingredientes-tabla" aria-live="polite" style="display:none;width:100%; overflow:auto;">
+                    <!-- Oculto por redundancia con la sección de ingredientes -->
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div id="ingredientes-actuales" class="ingredientes-actuales-card" style="margin:8px 0 16px 0; display:none; border:1px solid #e0e7ef; border-radius:8px; background:#f8fafc; padding:12px;">
+                    <h4 style="margin:0 0 8px 0; font-size:1.05em; color:#64748b;">Ingredientes actuales de la receta</h4>
+                    <div id="ingredientes-actuales-list"></div>
                   </div>
                 </div>
                 <div class="form-row">

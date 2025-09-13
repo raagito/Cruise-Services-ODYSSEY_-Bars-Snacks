@@ -241,9 +241,11 @@ def crear_producto_bar_api(request):
     precio_vta= precio if precio else 0,
     receta=''  # pendiente de implementar
   )
-  # Crear ingredientes de receta (por defecto cantidad=1, unidad vacía)
+  # Crear ingredientes de receta (por defecto cantidad=1, unidad=medida del producto)
   for ing in ingredientes:
-    IngredienteReceta.objects.create(producto_bar=producto, ingrediente=ing, cantidad=1, unidad='')
+    # Buscar la descripción de la unidad
+    unidad = dict(ing.UNIDADES_MEDIDA).get(ing.medida, ing.medida)
+    IngredienteReceta.objects.create(producto_bar=producto, ingrediente=ing, cantidad=1, unidad=unidad)
   return JsonResponse({
     'success': True,
     'producto': {
@@ -263,11 +265,15 @@ from django.views.decorators.http import require_GET
 @require_GET
 def categorias_almacen_api(request):
   from apps.almacen.models import Producto
-  tipos = Producto.TIPOS_PRODUCTO
+  # Devuelve todos los tipos de producto, pero marca solo los tres requeridos con 'mostrar': True
+  tipos = [
+    (tipo_id, tipo_nombre, tipo_id in ("ALIMENTOS_FRESCOS", "ALIMENTOS_SECOS", "BEBIDAS"))
+    for tipo_id, tipo_nombre in Producto.TIPOS_PRODUCTO
+  ]
   subtipos = Producto.SUBTIPOS_PRODUCTO
   # Agrupar subtipos por tipo
   subtipos_por_tipo = {}
-  for tipo_id, tipo_nombre in tipos:
+  for tipo_id, tipo_nombre, _ in tipos:
     subtipos_por_tipo[tipo_id] = []
   for sub_id, sub_nombre in subtipos:
     # Buscar a qué tipo pertenece el subtipo
@@ -279,9 +285,10 @@ def categorias_almacen_api(request):
     {
       'id': tipo_id,
       'nombre': tipo_nombre,
-      'subtipos': subtipos_por_tipo[tipo_id]
+      'subtipos': subtipos_por_tipo[tipo_id],
+      'mostrar': mostrar
     }
-    for tipo_id, tipo_nombre in tipos
+    for tipo_id, tipo_nombre, mostrar in tipos
   ]
   return JsonResponse(data, safe=False)
 from django.views.decorators.http import require_http_methods
@@ -316,25 +323,31 @@ def guardar_receta_producto_bar_api(request, producto_id: int):
     p = ProductoBar.objects.get(id=producto_id)
   except ProductoBar.DoesNotExist:
     return JsonResponse({'success': False, 'error': 'ProductoBar no encontrado'}, status=404)
-  try:
-    payload = json.loads(request.body or '{}')
-  except json.JSONDecodeError:
-    return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
-  items = payload.get('items') or []
+  data = json.loads(request.body)
+  items = data.get('items') or data.get('ingredientes') or []
   # Reemplazar receta completa: simple y claro
   p.receta_items.all().delete()
+  from decimal import Decimal
   creados = []
+  from apps.almacen.models import Producto as ProdAlmacen
   for it in items:
-    ing_id = it.get('ingrediente_id') or it.get('id')
+    if isinstance(it, dict):
+      ing_id = it.get('ingrediente_id') or it.get('id')
+      cantidad = it.get('cantidad', 1)
+      unidad = it.get('unidad')
+    else:
+      ing_id = it
+      cantidad = 1
+      unidad = None
     if not ing_id:
       continue
     try:
       ing = ProdAlmacen.objects.get(id=ing_id)
     except ProdAlmacen.DoesNotExist:
       continue
-    cant = Decimal(str(it.get('cantidad') or 1))
-    unidad = str(it.get('unidad') or '')
-    obj = IngredienteReceta.objects.create(producto_bar=p, ingrediente=ing, cantidad=cant, unidad=unidad)
+    cant = Decimal(str(cantidad)) if cantidad is not None else 1
+    unidad_final = str(unidad or ing.medida)
+    obj = IngredienteReceta.objects.create(producto_bar=p, ingrediente=ing, cantidad=cant, unidad=unidad_final)
     creados.append({
       'id': obj.id,
       'ingrediente_id': obj.ingrediente_id,
@@ -343,20 +356,6 @@ def guardar_receta_producto_bar_api(request, producto_id: int):
       'unidad': obj.unidad
     })
   return JsonResponse({'success': True, 'producto_id': p.id, 'items': creados})
-from apps.bares_snacks.models import Menu
-
-def productos_disponibles_api(request):
-  productos = []
-  for menu in Menu.objects.all():
-    productos.append({
-      'id': menu.id,
-      'nombre': menu.nombre,
-      'categoria': menu.categoria.nombre if menu.categoria else '',
-      'tipo': 'pago' if menu.precio_vta > 0 else 'gratis',
-      'precio': float(menu.precio_vta),
-      'ingredientes': [],
-      'cantidad_posible': 0
-    })
   return JsonResponse(productos, safe=False)
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
