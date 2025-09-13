@@ -174,6 +174,7 @@
             <div class="pedido-card ${p.estado}" data-id="${p.id}" style="background:#fff; border:1px solid #e5e7eb; font-family: 'Fira Mono', 'Consolas', monospace; padding:18px 24px 22px;">
                 <div class="pedido-head">
                     <div class="pedido-id">#${p.id}</div>
+                    <div class="pedido-factura">Factura: <span style="color:#059669;font-weight:600;">${p.numero_factura||'-'}</span></div>
                     <div style="display:flex;align-items:center;gap:8px;">
                       <div class="${estadoClass}">${estadoTxt}</div>
                       ${planLabel}
@@ -209,6 +210,9 @@
             <div class="modal-pedido-dialog recibo" style="max-width:440px; background:linear-gradient(180deg,#ffffff,#f8fafc 40%,#ffffff); border:1px solid #e2e8f0;">
                 <button class="modal-close" aria-label="Cerrar">×</button>
                 <h2 class="modal-title">Pedido #${p.id} (Estado: ${p.estado.replace('_',' ')})</h2>
+                <div style="font-family:'Fira Mono','Consolas',monospace; color:#475569; margin:10px 0 14px; font-size:.95em;">
+                  <div style="color:#059669; font-weight:600;">Número de Factura: ${p.numero_factura||'-'}</div>
+                </div>
                 <div class="estado-resumen" style="font-size:.75rem">
                     <div class="fila">
                         <span class="tag">${p.tipo_consumo==='camarote'?'Habitación':'Lugar'}: ${p.tipo_consumo==='camarote'?(p.habitacion_nombre||'--'):(p.lugarentrega_nombre||'--')}</span>

@@ -529,6 +529,19 @@ def crear_pedido_api(request):
 
     # Crear pedido
     try:
+      # Generar número de factura
+      def generar_numero_factura(pedido_id, lugar_nombre, productos):
+          lugarCod = (lugar_nombre or '').upper().replace(" ","").replace("Á","A").replace("É","E").replace("Í","I").replace("Ó","O").replace("Ú","U")
+          lugarCod = ''.join([c for c in lugarCod if c.isalpha()])[:3]
+          if len(lugarCod) < 3:
+              lugarCod = (lugarCod + 'XXX')[:3]
+          correlativo = str(pedido_id).zfill(4)
+          es_premium = any((d.get('plan') == 'pago' or d.get('plan') == 'premium') for d in productos)
+          factura = f"BR-{lugarCod}-{correlativo}"
+          if es_premium:
+              factura += "-PR"
+          return factura
+
       pedido = Pedidos.objects.create(
         empleado=empleado,
         cliente=cliente,
@@ -536,6 +549,11 @@ def crear_pedido_api(request):
         habitacion=habitacion if tipo_consumo == 'camarote' else None,
         estado='pendiente'
       )
+      # Asignar número de factura
+      lugar_nombre = str(instalacion.nombre) if instalacion else None
+      numero_factura = generar_numero_factura(pedido.id, lugar_nombre, productos)
+      pedido.numero_factura = numero_factura
+      pedido.save(update_fields=['numero_factura'])
     except IntegrityError as ie:
       diag = {
         'empleado_id': getattr(empleado, 'id', None),
@@ -753,17 +771,18 @@ def _serialize_pedido(p):
     'empleado_nombre': emp_nombre,
     'empleado_categoria': emp_categoria,
     'empleado_puesto': emp_puesto,
-  'lugarentrega_id': p.lugarentrega_id,
-  'lugarentrega_nombre': str(p.lugarentrega) if p.lugarentrega_id else None,
-  'habitacion_id': getattr(p, 'habitacion_id', None),
-  'habitacion_nombre': (f"Hab. {getattr(p.habitacion, 'numero', '')} ({getattr(p.habitacion, 'codigo_ubicacion', '')})" if getattr(p, 'habitacion_id', None) else None),
-  'tipo_consumo': 'bar' if p.lugarentrega_id else 'camarote',
+    'lugarentrega_id': p.lugarentrega_id,
+    'lugarentrega_nombre': str(p.lugarentrega) if p.lugarentrega_id else None,
+    'habitacion_id': getattr(p, 'habitacion_id', None),
+    'habitacion_nombre': (f"Hab. {getattr(p.habitacion, 'numero', '')} ({getattr(p.habitacion, 'codigo_ubicacion', '')})" if getattr(p, 'habitacion_id', None) else None),
+    'tipo_consumo': 'bar' if p.lugarentrega_id else 'camarote',
     'productos': detalles_resp,
     'total': total,
     'nota': None,
     'fecha_hora': fecha_hora.isoformat(),
     'fecha': fecha_hora.date().isoformat(),
     'hora': fecha_hora.strftime('%H:%M'),
+    'numero_factura': getattr(p, 'numero_factura', None),
   }
 
 

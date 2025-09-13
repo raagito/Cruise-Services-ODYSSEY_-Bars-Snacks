@@ -81,6 +81,14 @@ class Pedidos(models.Model):
         related_name='pedidos_entregados',
         help_text='Instalación física de entrega o consumo (bar, restaurante, etc.)'
     )
+
+    numero_factura = models.CharField(
+        max_length=32,
+        unique=True,
+        blank=True,
+        null=True,
+        help_text='Número de factura generado para el pedido (formato BR-XXX-0001[-PR])'
+    )
     # Si el consumo es en camarote, guardamos la habitación
     habitacion = models.ForeignKey(
         'cruceros.Habitacion',

@@ -169,7 +169,14 @@
                 <button class="btn-peligro btn-animado" data-accion="eliminar" data-id="${p.id}" ${p.estado!=='pendiente'?'disabled':''}>Eliminar</button>
             </div>`;
         }
-        // Card visual estilo factura
+        // Generar número de factura
+        let lugar = (p.lugarentrega_nombre||'').toUpperCase();
+        let lugarCod = lugar.replace(/[^A-Z]/g,'').slice(0,3);
+        if(lugarCod.length<3) lugarCod = (lugarCod + 'XXX').slice(0,3);
+        let correlativo = String(p.id).padStart(4,'0');
+        let factura = `BR-${lugarCod}-${correlativo}`;
+        if(planType==='premium') factura += '-PR';
+        // Card visual estilo factura con columna de factura
         const card = htmlToEl(`
             <div class="pedido-card ${p.estado}" data-id="${p.id}" style="background:#fff; border:1px solid #e5e7eb; font-family: 'Fira Mono', 'Consolas', monospace; padding:18px 24px 22px;">
                 <div class="pedido-head">
@@ -180,6 +187,7 @@
                     </div>
                 </div>
                 <div class="pedido-body" style="display:flex;flex-direction:column;gap:8px; margin-top:10px;">
+                    <div class="pedido-linea factura-lista" style="color:#334155;font-weight:700;">Factura: ${p.numero_factura || factura}</div>
                     <div class="pedido-linea productos-lista" style="color:#64748b;">Productos: ${productosTxt||'-'}</div>
                     <div class="pedido-linea lugar-lista" style="color:#64748b;">${lugarTxt}</div>
                     <div class="pedido-linea empleado-lista" style="color:#64748b;">${empleadoTxt}</div>
@@ -210,6 +218,9 @@
                 <button class="modal-close" aria-label="Cerrar">×</button>
                 <h2 class="modal-title">Pedido #${p.id} (Estado: ${p.estado.replace('_',' ')})</h2>
                 <div class="estado-resumen" style="font-size:.75rem">
+                    <div class="fila">
+                        <span class="tag" style="background:#22c55e;color:#fff;font-weight:700;">Factura: ${p.numero_factura || '-'}</span>
+                    </div>
                     <div class="fila">
                         <span class="tag">${p.tipo_consumo==='camarote'?'Habitación':'Lugar'}: ${p.tipo_consumo==='camarote'?(p.habitacion_nombre||'--'):(p.lugarentrega_nombre||'--')}</span>
                         <span class="tag">Empleado: ${p.empleado_nombre ? escapeHtml(p.empleado_nombre) + (p.empleado_categoria?` — ${escapeHtml(p.empleado_categoria)}`:'') : (p.empleado_id??'-')}</span>

@@ -25,6 +25,7 @@
       <div class="orden-card ${p.estado}" data-id="${p.id}">
         <div class="orden-head">
           <div class="orden-id">#${p.id}</div>
+          <div class="orden-factura">Factura: <span style="color:#059669;font-weight:600;">${p.numero_factura||'-'}</span></div>
           ${badgeEstado(p.estado)}
         </div>
         <div class="orden-body">
@@ -148,6 +149,7 @@
         <button class="modal-close" aria-label="Cerrar">×</button>
         <h2 class="modal-title">Factura Pedido #${p.id}</h2>
         <div style="font-family:'Fira Mono','Consolas',monospace; color:#475569; display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0 14px;">
+          <div style="grid-column:1 / -1; color:#059669; font-weight:600;">Número de Factura: ${p.numero_factura||'-'}</div>
           <div>Estado: ${p.estado?.replace('_',' ')||'-'}</div>
           <div>Tipo: ${p.tipo_consumo==='camarote'?'Camarote':'Bar'}</div>
           <div>${p.tipo_consumo==='camarote'?'Habitación':'Lugar'}: ${p.tipo_consumo==='camarote'?(p.habitacion_nombre||'--'):(p.lugarentrega_nombre||'--')}</div>
