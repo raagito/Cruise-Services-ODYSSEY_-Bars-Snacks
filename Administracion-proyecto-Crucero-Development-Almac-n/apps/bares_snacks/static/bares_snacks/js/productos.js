@@ -205,19 +205,24 @@ let ingredientesSeleccionadosGlobal = [];
 		if(p.origen) card.dataset.origen = p.origen;
 		const nombre=ce('h4','product-name'); nombre.textContent=p.nombre||'Producto';
 		const tags=ce('div','product-tags');
-		const tipoTag=ce('span','tag '+(p.tipo==='pago'?'premium':'gratis')); tipoTag.textContent=p.tipo==='pago'?'PAGO':'GRATIS'; tags.appendChild(tipoTag);
+		const tipoTag=ce('span','tag '+(p.tipo==='pago'?'premium':'gratis'));
+		if(p.tipo==='pago'){
+			tipoTag.textContent = 'PAGO';
+		}else{
+			tipoTag.textContent = 'ALL INCLUSIVE';
+		}
+		tags.appendChild(tipoTag);
 		if(p.tipo==='pago'&&p.precio){ const price=ce('span','price'); price.textContent=formatPrecio(p.precio); tags.appendChild(price);} 
 		const acciones=ce('div','card-actions');
-		const badge=ce('span','stock-badge'); badge.textContent=(p.ingredientes?.length||0)+' ING';
 		const btns=ce('div','card-btns');
-		const bEdit=ce('button','icon-btn edit'); bEdit.type='button'; bEdit.innerHTML='✎';
-		const bDel=ce('button','icon-btn delete'); bDel.type='button'; bDel.innerHTML='🗑';
-		const bInfo=ce('button','icon-btn info'); bInfo.type='button'; bInfo.innerHTML='ℹ️'; bInfo.title='Ver más';
+		bDel=ce('button','icon-btn delete'); bDel.type='button'; bDel.innerHTML='<span style="font-size:1.2em; font-weight:bold; color:#dc2626;">×</span>';
+		bEdit=ce('button','icon-btn edit'); bEdit.type='button'; bEdit.innerHTML='<svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 13.5V16H6.5L14.81 7.69L12.31 5.19L4 13.5Z" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 6.5L15 8" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+		bInfo=ce('button','icon-btn info'); bInfo.type='button'; bInfo.innerHTML='<span style="font-size:1.2em; font-weight:bold; color:#2563eb;">i</span>'; bInfo.title='Ver más';
 		bDel.addEventListener('click', ()=> intentarEliminarProducto(card, p));
 	bEdit.addEventListener('click', async ()=> await abrirEdicionProducto(p));
 		bInfo.addEventListener('click', ()=> verMasProducto(p));
 		btns.appendChild(bInfo); btns.appendChild(bEdit); btns.appendChild(bDel);
-		acciones.appendChild(badge); acciones.appendChild(btns);
+		acciones.appendChild(btns);
 		card.appendChild(nombre); card.appendChild(tags); card.appendChild(acciones);
 		return card;
 	}
