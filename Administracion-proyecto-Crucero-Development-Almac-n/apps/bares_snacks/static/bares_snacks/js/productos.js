@@ -247,6 +247,37 @@ let ingredientesSeleccionadosGlobal = [];
 		}
 	});
 
+	function abrirEdicionProducto(p){
+		// Activar modo edición y prellenar formulario con los datos actuales
+		state.edit = { active:true, producto:p };
+		setModalTitle('Editar Producto');
+		setSubmitText('Guardar cambios');
+		// Nombre
+		if(inputNombre) inputNombre.value = p.nombre || '';
+		// Categoría (filtro)
+		const catFiltroSel = document.getElementById('categoria-filtro-select');
+		if(catFiltroSel){
+			// Valor puede ser texto (categoría) o id
+			let target = String(p.categoria || p.categoria_id || '');
+			let opt = Array.from(catFiltroSel.options).find(o => o.value===target || o.textContent.trim()===target);
+			catFiltroSel.value = opt ? opt.value : '';
+		}
+		if (modalDetalle) {
+			modalDetalle.addEventListener('click', function(e) {
+				if(e.target===modalDetalle){
+					modalDetalle.setAttribute('aria-hidden','true');
+					document.body.style.overflow='';
+				}
+			});
+			document.addEventListener('keydown', function escDetalleListener(e) {
+				if(e.key==='Escape' && modalDetalle.getAttribute('aria-hidden')==='false'){
+					modalDetalle.setAttribute('aria-hidden','true');
+					document.body.style.overflow='';
+				}
+			});
+		}
+	};
+
 	async function abrirEdicionProducto(p){
 	// Activar modo edición y prellenar formulario con los datos actuales
 	state.edit = { active:true, producto:p };
