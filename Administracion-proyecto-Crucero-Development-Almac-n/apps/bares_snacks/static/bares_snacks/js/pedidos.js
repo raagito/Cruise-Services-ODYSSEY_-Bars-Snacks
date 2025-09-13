@@ -12,6 +12,7 @@
     // ----- Multi productos (estado in-memory) -----
     let catalogoProductos = [];
     const cantidadesEstado = new Map(); // productoId -> { id, nombre, tipo, precio, cantidad }
+    let cantidadesBackup = null; // backup para restaurar al cambiar tipo/subtipo
     function parseListaProductos(){ return Array.from(cantidadesEstado.values()); }
 
     function syncCajaCantidades(){
@@ -613,20 +614,21 @@
         }
         if(tipoConsumo && wrapInst && wrapHab){
             const applyTipo = ()=>{
+                // Solo cambiar la visibilidad de los campos, sin modificar cantidadesEstado
                 if(tipoConsumo.value==='bar'){
-                    // Mostrar instalación (bar) requerido
                     wrapInst.style.display='';
                     instSelect?.setAttribute('required','required');
-                    // Camarote oculto
                     wrapHab.style.display='none';
                     habitacionSelect?.removeAttribute('required');
                 } else {
-                    // Modo camarote: requerir habitación
                     wrapHab.style.display='';
                     habitacionSelect?.setAttribute('required','required');
                     wrapInst.style.display='none';
                     instSelect?.removeAttribute('required');
                 }
+                // No modificar cantidadesEstado ni restaurar backup
+                marcarSelectProductos();
+                syncCajaCantidades();
             };
             tipoConsumo.addEventListener('change', applyTipo);
             applyTipo();

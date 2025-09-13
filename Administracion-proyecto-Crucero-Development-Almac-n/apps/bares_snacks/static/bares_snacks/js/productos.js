@@ -95,16 +95,26 @@ let ingredientesSeleccionadosGlobal = [];
 		const catId = selectTipoAlmacen.value;
 		const cat = state.categorias.find(c => String(c.id) === catId);
 		const subs = getSubtipos(cat);
-	// Guardar ingredientes seleccionados en variable global antes de limpiar
+	// Guardar ingredientes seleccionados en variable global antes de limpiar, incluyendo cantidad y stock
 	const actuales = obtenerIngredientesSeleccionados();
-	// Fusionar sin duplicados
-	ingredientesSeleccionadosGlobal = actuales.concat(ingredientesSeleccionadosGlobal.filter(ingOld => !actuales.some(ingNew => ingNew.id === ingOld.id)));
+	// Fusionar sin duplicados, manteniendo cantidad y stock
+	ingredientesSeleccionadosGlobal = actuales.concat(
+		ingredientesSeleccionadosGlobal.filter(ingOld => !actuales.some(ingNew => ingNew.id === ingOld.id))
+	);
 		if (!cat) {
 			selectSubtipoAlmacen.innerHTML = '<option value="">Selecciona subtipo</option>';
 			selectIngredientes.innerHTML = '';
 		limpiarTags();
-		// Restaurar todos los tags de ingredientes seleccionados globalmente
-		ingredientesSeleccionadosGlobal.forEach(ing => agregarTagIngrediente(ing));
+		// Restaurar todos los tags de ingredientes seleccionados globalmente, manteniendo cantidad y stock
+		ingredientesSeleccionadosGlobal.forEach(ing => {
+			agregarTagIngrediente({
+				id: ing.id,
+				nombre: ing.nombre,
+				unidad: ing.unidad,
+				stock: ing.stock,
+				cantidad: ing.cantidad // Mantener la cantidad ingresada
+			});
+		});
 		actualizarResumen();
 			return;
 		}
@@ -431,42 +441,53 @@ let ingredientesSeleccionadosGlobal = [];
 	function onAddIngredientesDesdeSelect(){ if(!selectIngredientes) return; Array.from(selectIngredientes.selectedOptions).forEach(o=>{ const id=o.value; if(!id) return; if(contenedorTags.querySelector(`[data-id="${CSS.escape(id)}"]`)) return; const unidad=o.getAttribute('data-unidad')||''; const stock=o.getAttribute('data-stock')||''; const nombreRaw=o.textContent.trim().replace(/\s*\([^)]*\)$/,''); agregarTagIngrediente({id, nombre:nombreRaw, unidad, stock}); }); selectIngredientes.selectedIndex=-1; Array.from(selectIngredientes.options).forEach(o=>o.selected=false); actualizarResumen(); }
 	function agregarTagIngrediente(obj){
 		if(!contenedorTags) return;
+		// Si el tag ya existe, solo modificar la cantidad
+		const existingTag = contenedorTags.querySelector(`[data-id="${CSS.escape(obj.id)}"]`);
+		if (existingTag) {
+			const inputCantidad = existingTag.querySelector('.input-cantidad');
+			if (inputCantidad && typeof obj.cantidad !== 'undefined') {
+				inputCantidad.value = obj.cantidad;
+				inputCantidad.dispatchEvent(new Event('input'));
+			}
+			return;
+		}
+		// Si es nuevo, agregar el tag con el span de stock
 		const tag=document.createElement('div');
 		tag.className='ingrediente-tag';
 		tag.dataset.id=obj.id;
-		const stockNum = parseFloat(obj.stock);
+		// Limpiar el texto 'Stock:' si ya está incluido en obj.stock
+		let stockValue = obj.stock || '';
+		stockValue = stockValue.replace(/^(Stock:\s*)+/i, '');
+		const stockNum = parseFloat(stockValue);
 		const tieneStock = !isNaN(stockNum) && stockNum>0;
 		const statusTxt = tieneStock ? 'Disponible' : 'Sin stock';
-		const stockTxt=obj.stock!==''?`Stock: ${escapeHtml(obj.stock)}`:'';
-		// Input para cantidad editable
+		const stockTxt=stockValue!==''?`Stock: ${escapeHtml(stockValue)}`:'';
 		const cantidad = (typeof obj.cantidad !== 'undefined') ? obj.cantidad : '';
-			let unidadDesc = '';
-			if(obj.unidad && obj.unidad.toUpperCase() === 'K') unidadDesc = ' (kilogramos)';
-			else if(obj.unidad && obj.unidad.toUpperCase() === 'L') unidadDesc = ' (litros)';
-			tag.innerHTML = `
-				<span class="nombre">${escapeHtml(obj.nombre)}</span>
-				<input type="number" class="input-cantidad" min="0" step="0.001" placeholder="Cantidad" value="${cantidad}" style="width:60px; margin:0 6px;" />
-				<span class="conversion-eq"></span>
-				${obj.unidad?`<span class="unidad">${escapeHtml(obj.unidad)}${unidadDesc}</span>`:''}
-				${stockTxt?`<span class=\"stock\">${stockTxt}</span>`:''}
-				<span class="status ${tieneStock?'disponible':'sin-stock'}">${statusTxt}</span>
-				<button type="button" class="remove" aria-label="Eliminar">×</button>
-			`;
-		// Conversión en tiempo real
+		let unidadDesc = '';
+		if(obj.unidad && obj.unidad.toUpperCase() === 'K') unidadDesc = ' (kilogramos)';
+		else if(obj.unidad && obj.unidad.toUpperCase() === 'L') unidadDesc = ' (litros)';
+		tag.innerHTML = `
+			<span class="nombre">${escapeHtml(obj.nombre)}</span>
+			<input type="number" class="input-cantidad" min="0" step="0.001" placeholder="Cantidad" value="${cantidad}" style="width:60px; margin:0 6px;" />
+			<span class="conversion-eq"></span>
+			${obj.unidad?`<span class="unidad">${escapeHtml(obj.unidad)}${unidadDesc}</span>`:''}
+			${stockTxt?`<span class=\"stock\">${stockTxt}</span>`:''}
+			<span class="status ${tieneStock?'disponible':'sin-stock'}">${statusTxt}</span>
+			<button type="button" class="remove" aria-label="Eliminar">×</button>
+		`;
 		const inputCantidad = tag.querySelector('.input-cantidad');
 		const eqSpan = tag.querySelector('.conversion-eq');
-					function actualizarEq(){
-						let val = parseFloat(inputCantidad.value);
-						let unidad = (obj.unidad||'').toUpperCase();
-						let eq = '';
-						if(!isNaN(val)){
-							if(unidad==='K') eq = `${(val*1000).toFixed(3)} g`;
-							else if(unidad==='L') eq = `${(val*1000).toFixed(3)} ml`;
-						}
-						eqSpan.textContent = eq;
-					}
+		function actualizarEq(){
+			let val = parseFloat(inputCantidad.value);
+			let unidad = (obj.unidad||'').toUpperCase();
+			let eq = '';
+			if(!isNaN(val)){
+				if(unidad==='K') eq = `${(val*1000).toFixed(3)} g`;
+				else if(unidad==='L') eq = `${(val*1000).toFixed(3)} ml`;
+			}
+			eqSpan.textContent = eq;
+		}
 		inputCantidad && inputCantidad.addEventListener('input', actualizarEq);
-		// Inicializar conversión si ya hay valor
 		setTimeout(actualizarEq, 10);
 		tag.querySelector('button.remove').addEventListener('click',()=>{ tag.remove(); actualizarResumen(); });
 		contenedorTags.appendChild(tag);
@@ -481,7 +502,7 @@ let ingredientesSeleccionadosGlobal = [];
 			stock: t.querySelector('.stock')?.textContent.trim()||'',
 			cantidad: (()=>{
 				const input = t.querySelector('.input-cantidad');
-				return input ? parseFloat(input.value) || 0 : 0;
+				return input ? input.value : '';
 			})()
 		}));
 	}
