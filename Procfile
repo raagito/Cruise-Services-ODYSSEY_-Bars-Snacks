@@ -1,1 +1,1 @@
-web: gunicorn odyssey.wsgi:application
+web: gunicorn admin-project.wsgi:application
