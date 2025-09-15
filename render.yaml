@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: django-cruise-bars-snacks
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn mi_portafolio.wsgi:application
+    autoDeploy: true
