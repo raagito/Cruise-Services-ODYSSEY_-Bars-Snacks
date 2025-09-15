@@ -3,6 +3,6 @@ services:
     name: django-cruise-bars-snacks
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn admin-project.wsgi:application
+    startCommand: gunicorn admin_project.wsgi:application
     autoDeploy: true
   
