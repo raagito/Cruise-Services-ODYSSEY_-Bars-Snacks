@@ -1,1 +1,1 @@
-web: gunicorn cruise_admin.wsgi:application
+web: gunicorn odyssey.admin_project.cruise_admin.wsgi:application
